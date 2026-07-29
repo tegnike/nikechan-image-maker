@@ -85,6 +85,8 @@ describe("thumbnail library storage", () => {
         concept: "coherent test theme",
         palette: ["#112233", "#ddeeff"],
         shapeLanguage: "large curves",
+        titleLayout: "split-character",
+        supportCopy: "reading",
         backgroundAssetPath: "backgrounds/2026/07/29/background.png",
         titleAssetPath: "texts/2026/07/29/title.png",
         accentAssets: [{
@@ -100,6 +102,8 @@ describe("thumbnail library storage", () => {
     expect(themes).toHaveLength(1);
     expect(themes[0]).toMatchObject({
       id: "theme-test",
+      titleLayout: "split-character",
+      supportCopy: "reading",
       background: { type: "backgrounds", themeId: "theme-test" },
       title: { type: "texts", themeId: "theme-test" },
       accents: [{

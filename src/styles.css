@@ -96,7 +96,7 @@ button { color: inherit; }
 .theme-accent { height: auto; object-fit: contain; }
 .theme-info { position: relative; padding: 9px 10px 10px; }
 .theme-info strong { display: block; overflow: hidden; color: #40394e; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.theme-info > span { display: block; margin-top: 3px; color: #8a8394; font-size: 9px; }
+.theme-info > span { display: block; overflow: hidden; margin-top: 3px; padding-right: 54px; color: #8a8394; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .theme-palette { position: absolute; right: 9px; bottom: 10px; display: flex; gap: 3px; }
 .theme-palette i { width: 10px; height: 10px; border: 1px solid rgba(25,20,42,.14); border-radius: 50%; }
 

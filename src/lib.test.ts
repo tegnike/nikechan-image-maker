@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeThumbnail,
   applyFinishPreset,
+  applySupportCopy,
   applyThumbnailTemplate,
+  applyTitleLayout,
   cloneLayer,
   createEmptyProject,
   createTitleLayer,
@@ -104,12 +106,13 @@ describe("thumbnail project model", () => {
     const oldTitle = { ...image, id: "old-title", themeId: "old", themeRole: "title" as const };
     const oldProp = { ...image, id: "old-prop", assetType: "decorations" as const, themeId: "old", themeRole: "prop" as const };
     const character = { ...image, id: "character", assetType: "characters" as const };
+    const supportCopy = { ...base, id: "support-copy", compositionRole: "support-copy" as const, text: "あさかつ" };
     const nextBackground = { ...oldBackground, id: "next-background", themeId: "next", themeRole: "background" as const };
     const nextProp = { ...oldProp, id: "next-prop", themeId: "next" };
     const nextTitle = { ...oldTitle, id: "next-title", themeId: "next" };
 
     const replaced = replaceThemeKitLayers(
-      [oldBackground, base, character, oldProp, oldTitle],
+      [oldBackground, base, character, oldProp, oldTitle, supportCopy],
       nextBackground,
       [nextProp],
       nextTitle,
@@ -144,6 +147,77 @@ describe("thumbnail project model", () => {
     expect(arranged.at(-1)?.id).toBe(titleImage.id);
     expect(arrangedTitle.x).toBeLessThan(100);
     expect(Math.abs(arrangedTitle.width * arrangedTitle.scaleX)).toBeGreaterThan(600);
+  });
+
+  it("splits the generated 朝活 image around its measured gap and centers the character", () => {
+    const base = createTitleLayer();
+    const title = {
+      ...base,
+      id: "generated-title",
+      kind: "image" as const,
+      src: "/title.png",
+      assetType: "texts" as const,
+      compositionRole: "main-title" as const,
+      width: 1000,
+      height: 400,
+      cropX: 80,
+      cropY: 20,
+      cropWidth: 1000,
+      cropHeight: 400,
+      titleSplitRatio: 0.44,
+    };
+    const character = {
+      ...title,
+      id: "character",
+      src: "/character.png",
+      assetType: "characters" as const,
+      width: 600,
+      height: 1400,
+      headAnchor: {
+        centerX: 0.5,
+        centerY: 0.18,
+        width: 0.4,
+        height: 0.25,
+        method: "manual-reviewed" as const,
+        confidence: 0.95,
+      },
+    };
+
+    const arranged = applyTitleLayout([character, title], "split-character");
+    const parts = arranged.filter((layer) => layer.compositionRole === "title-part");
+    const nextCharacter = arranged.find((layer) => layer.id === character.id)!;
+
+    expect(arranged.find((layer) => layer.id === title.id)?.visible).toBe(false);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toMatchObject({ cropX: 80, cropWidth: 440 });
+    expect(parts[1]).toMatchObject({ cropX: 520, cropWidth: 560 });
+    expect(nextCharacter.x + nextCharacter.width * nextCharacter.scaleX * character.headAnchor.centerX).toBeCloseTo(640);
+
+    const restored = applyTitleLayout(arranged, "side-by-side");
+    expect(restored.some((layer) => layer.compositionRole === "title-part")).toBe(false);
+    expect(restored.find((layer) => layer.id === title.id)?.visible).toBe(true);
+  });
+
+  it("combines a title layout with one replaceable theme-colored support copy", () => {
+    const base = createTitleLayer();
+    const title = {
+      ...base,
+      id: "generated-title",
+      kind: "image" as const,
+      src: "/title.png",
+      assetType: "texts" as const,
+      compositionRole: "main-title" as const,
+      width: 900,
+      height: 420,
+    };
+    const diagonal = applyTitleLayout([title], "diagonal-impact");
+    const withReading = applySupportCopy(diagonal, "reading", ["#f8fff0", "#173b36", "#d95c9f"]);
+    const withEnglish = applySupportCopy(withReading, "english", ["#f8fff0", "#173b36", "#d95c9f"]);
+    const support = withEnglish.filter((layer) => layer.compositionRole === "support-copy");
+
+    expect(diagonal[0].rotation).toBe(-12);
+    expect(support).toHaveLength(1);
+    expect(support[0]).toMatchObject({ kind: "text", text: "MORNING STREAM", fill: "#f8fff0", stroke: "#173b36", rotation: -8 });
   });
 
   it("positions and scales a character from its head anchor", () => {

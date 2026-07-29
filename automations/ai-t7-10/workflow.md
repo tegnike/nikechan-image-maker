@@ -52,6 +52,7 @@
    - 人物の位置と画面占有率
    - 顔の位置
    - 主文字の位置と画面占有率
+   - 二文字タイトルの上下余白を、文字分割、斜め大配置、補助コピー、読み仮名、英字、テーマ連動モチーフのどれで埋めているか
    - 背景の単純さと明暗分布
    - 色の役割とコントラスト
    - 外周・帯・部分フレームの使い方
@@ -71,6 +72,10 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - `shape_language`
 - `texture_language`: 最大2種
 - `title_treatment`
+- `title_layout`: `side-by-side`、`split-character`、`diagonal-impact`のいずれか
+- `support_copy`: `none`、`stream`、`casual`、`reading`、`english`のいずれか。アプリ上では順に補助なし、「配信」、「するよ！」、「あさかつ」、「MORNING STREAM」を表す
+- `support_copy_zone`: 補助コピーを置いて顔と主文字を塞がない領域
+- `gap_accent_mode`: `none`または`integrated-micro-motifs`。後者はforeground-accent内に統合する1〜3個の小さな非文字モチーフと位置
 - `accent_concept`: 部分フレームのモチーフ、`corner`または`top-bottom`、想定位置
 - `composition_zone`: character, title, accentの安全領域
 - `visual_family`
@@ -79,13 +84,23 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 
 完成テーマ直近6件を`view_image`で比較し、参照元の違いを活かしながらmood、palette、shape_language、texture_languageの最低2軸を変える。実例との構成類似性を壊してまで差別化しない。単なる色替えは禁止する。visual familyは参照サムネイルの観察結果から決め、抽象的なテーマ名を先に選んで実例を歪めない。
 
+### 二文字タイトルの余白対策
+
+各テーマは、実例サムネイルの観察に基づいて次の主題構成を一つ選ぶ。アプリでは主題構成と補助コピーを後から別々に変更できるため、組み合わせても破綻しない安全領域を設計する。
+
+- `split-character`: 「朝」と「活」を左右へ明確に分離し、中央へキャラクターを置く。title画像内でも二文字を接触・重複させず、中央に十分な透明間隔を設ける。
+- `diagonal-impact`: 「朝活」全体を斜めに大きく横切らせ、上下の空きを減らす。人物の顔を横切らない角度と領域を指定する。
+- `side-by-side`: 人物と「朝活」を左右へ置く。二文字だけで上下が空くため、`support_copy`を`none`にしてはならない。
+
+`support_copy`は生成画像へ焼き込まず、アプリがテーマpaletteで編集可能な文字レイヤーとして追加する。`split-character`と`diagonal-impact`でも実例に補助文字があれば併用してよい。各テーマは`title_layout`が`split-character`または`diagonal-impact`、あるいは`support_copy`が`none`以外、の少なくとも一つを必ず満たす。
+
 ## 共通品質
 
 - 「別々の素材」より「重ねた一枚を使いたくなること」を優先する。
 - AIニケちゃんの紫髪、青緑Tシャツ、ピンクの上着と調和または意図的に対比する配色にする。
 - パステルだけで薄くせず、必ず強いcontrast anchorを置く。
 - プレゼン資料、企業Webバナー、汎用壁紙、素材シート、生成AIの細密イラストにしない。
-- 背景はシンプル、人物と文字は大きく、前景は部分フレーム1点だけにする。独立した小物は生成しない。160px幅でも人物、文字、テーマの順に読める設計にする。
+- 背景はシンプル、人物と文字は大きく、前景は部分フレーム1点だけにする。独立した小物は生成しない。余白を埋める小さなテーマモチーフが必要なら同じforeground-accentへ統合し、単独素材へ戻さない。160px幅でも人物、文字、テーマの順に読める設計にする。
 - 太陽、日の出、光線、黄色を朝らしさの既定表現にしない。sun familyが完成テーマ直近8件にあれば禁止する。
 - 空の小窓、モニター、ディスプレイ、UIパネル、配信画面枠、picture-in-picture、空のカード、文字待ちの四角、プレースホルダー領域を作らない。
 - 要素を囲うためだけの大きな角丸矩形を作らない。人物や文字を「小窓の中」に収める構図は禁止する。
@@ -105,6 +120,9 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - 同じ`theme_id`の実背景PNGをスタイル参照に使い、palette、shape language、texture language、title treatmentを一致させる。
 - 背景と無関係な汎用ステッカーにしない。多重アウトラインは禁止し、輪郭は原則1系統、必要でも2系統まで。
 - 二文字の大小差、重なり、分割、傾き、ベースライン、字間までテーマとして設計してよい。ただし最終的な可読文字は「朝活」だけにする。
+- `title_layout="split-character"`では「朝」を左、「活」を右に置き、両者の間に画像幅の12%以上の完全な空白列を作る。文字同士、輪郭、影、装飾を中央で接続しない。アプリが中央の透明谷で安全に二分割できることを確認する。
+- `title_layout="diagonal-impact"`では、アプリでさらに斜め配置しても破綻しない横長の一体ロゴにする。上下へ大きな飾りを足して透明余白を増やさない。
+- `title_layout="side-by-side"`では、`support_copy_zone`を塞がない。補助コピーそのものをtitle画像へ入れない。
 - 1画像につきロゴ1点。完全に均一な`#00ff00`背景、影・床・反射なし、周囲に余白、ロゴ内に`#00ff00`を使わないと明記する。
 - 欠落、重複、誤字、別字、判読不能、指定外文字があれば採用しない。
 
@@ -116,6 +134,7 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - フレーム形式はテーマごとに次のどちらか一つを選ぶ。
   - `corner`: 1〜3か所の角に置くコーナー装飾。角同士を線で完全接続しない。各装飾は画面幅・高さの18%以内を目安とし、中央へ張り出さない。
   - `top-bottom`: 上辺と下辺に沿う細い帯、レール、リボン、罫線。各辺の高さは画面高の12%以内とし、左右辺を接続しない。
+- `gap_accent_mode="integrated-micro-motifs"`の場合だけ、部分フレームと同じoverlay内に1〜3個の小さな非文字モチーフを含めてよい。参照サムネイルまたはテーマ形状から直接導けるものに限り、各モチーフは画面幅・高さの8%以内、合計不透明面積は5%以内とする。主文字の上下またはsupport_copy_zone周辺の空きを埋める目的位置へ置き、人物の顔には置かない。
 - 背景のpalette、shape language、texture languageと一致させる。参照サムネイルに使える部分フレームがあれば、その位置と密度を抽象化して取り入れる。参照にフレームがなければ、背景の形状から控えめな角または上下フレームを派生させる。
 - 四辺を完全に囲む四角形、連続した全周枠、中央の大きな開口部を持つ額縁、内側サイズへの厳密なフィットを要求するフレームは禁止する。
 - 空の小窓、モニター、UIパネル、配信画面枠、文字台座、独立したバッジ、小物、完成サムネイル全体は生成しない。
@@ -168,6 +187,8 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
   "concept": "...",
   "palette": ["#..."],
   "shapeLanguage": "...",
+  "titleLayout": "side-by-side|split-character|diagonal-impact",
+  "supportCopy": "none|stream|casual|reading|english",
   "backgroundAssetPath": "backgrounds/...png",
   "titleAssetPath": "texts/...png",
   "accentAssets": [

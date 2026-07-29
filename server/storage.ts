@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, ThemeAccentRole, ThemeKit, ThumbnailProject } from "../src/types";
+import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, SupportCopyPreset, ThemeAccentRole, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "../src/types";
 import { remapHeadAnchorToCrop } from "../src/lib";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
@@ -183,6 +183,9 @@ type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "accents"> & {
   accentAssets?: ThemeAccentRecord[];
 };
 
+const TITLE_LAYOUTS = new Set<TitleLayoutPreset>(["side-by-side", "split-character", "diagonal-impact"]);
+const SUPPORT_COPIES = new Set<SupportCopyPreset>(["none", "stream", "casual", "reading", "english"]);
+
 function themeAsset(assetPath: string, type: AssetType, themeId: string, createdAt: string): Asset {
   const normalized = assetPath.replaceAll("\\", "/").replace(/^assets\//, "");
   const prefix = `${type}/`;
@@ -223,6 +226,8 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
       concept: theme.concept,
       palette: theme.palette,
       shapeLanguage: theme.shapeLanguage,
+      titleLayout: TITLE_LAYOUTS.has(theme.titleLayout as TitleLayoutPreset) ? theme.titleLayout : undefined,
+      supportCopy: SUPPORT_COPIES.has(theme.supportCopy as SupportCopyPreset) ? theme.supportCopy : undefined,
       createdAt: theme.createdAt,
       background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
       title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),

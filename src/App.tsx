@@ -23,12 +23,14 @@ import {
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThemeAccent, ThemeKit, ThumbnailProject } from "./types";
+import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
   analyzeThumbnail,
   applyFinishPreset,
+  applySupportCopy,
   applyThumbnailTemplate,
+  applyTitleLayout,
   cloneLayer,
   createEmptyProject,
   createId,
@@ -100,6 +102,49 @@ function visibleImageBounds(image: HTMLImageElement) {
   const bottom = Math.min(image.naturalHeight, Math.ceil((maxY + 1) * inverse) + margin);
   return { x, y, width: right - x, height: bottom - y };
 }
+
+function titleSplitRatio(image: HTMLImageElement, bounds: { x: number; y: number; width: number; height: number }) {
+  const sampleWidth = Math.max(2, Math.min(512, Math.round(bounds.width)));
+  const sampleHeight = Math.max(2, Math.min(512, Math.round(bounds.height * sampleWidth / bounds.width)));
+  const canvas = document.createElement("canvas");
+  canvas.width = sampleWidth;
+  canvas.height = sampleHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return 0.5;
+  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, sampleWidth, sampleHeight);
+  const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
+  const start = Math.floor(sampleWidth * 0.32);
+  const end = Math.ceil(sampleWidth * 0.68);
+  let bestColumn = Math.floor(sampleWidth / 2);
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let x = start; x <= end; x += 1) {
+    let opaque = 0;
+    for (let y = 0; y < sampleHeight; y += 1) {
+      if (pixels[(y * sampleWidth + x) * 4 + 3] > 12) opaque += 1;
+    }
+    const centerPenalty = Math.abs(x / sampleWidth - 0.5) * sampleHeight * 0.08;
+    const score = opaque + centerPenalty;
+    if (score < bestScore) {
+      bestScore = score;
+      bestColumn = x;
+    }
+  }
+  return Math.max(0.32, Math.min(0.68, bestColumn / sampleWidth));
+}
+
+const titleLayoutLabels: Record<TitleLayoutPreset, string> = {
+  "side-by-side": "人物と左右",
+  "split-character": "朝｜人物｜活",
+  "diagonal-impact": "斜め大文字",
+};
+
+const supportCopyLabels: Record<SupportCopyPreset, string> = {
+  none: "補助なし",
+  stream: "＋配信",
+  casual: "＋するよ！",
+  reading: "＋あさかつ",
+  english: "＋MORNING STREAM",
+};
 
 function ImageNode({
   layer,
@@ -601,6 +646,7 @@ function App() {
         headAnchor: asset.headAnchor
           ? remapHeadAnchorToCrop(asset.headAnchor, image.naturalWidth, image.naturalHeight, bounds)
           : undefined,
+        titleSplitRatio: asset.type === "texts" ? titleSplitRatio(image, bounds) : undefined,
         x,
         y,
         width: bounds.width,
@@ -660,12 +706,14 @@ function App() {
       ]);
       if (backgroundLayer.kind !== "image" || titleLayer.kind !== "image") throw new Error("Invalid theme assets");
       const background = { ...backgroundLayer, themeRole: "background" as const };
-      const title = { ...titleLayer, themeRole: "title" as const };
+      const title = { ...titleLayer, themeRole: "title" as const, compositionRole: "main-title" as const };
       commitProject((current) => {
         const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title);
-        return { ...current, layers: applyThumbnailTemplate(assembled, "character-right") };
+        const templated = applyThumbnailTemplate(assembled, "character-right");
+        const laidOut = applyTitleLayout(templated, theme.titleLayout || "side-by-side");
+        return { ...current, layers: applySupportCopy(laidOut, theme.supportCopy || "none", theme.palette) };
       });
-      setSelectedId(title.id);
+      setSelectedId(theme.titleLayout === "split-character" ? null : title.id);
       const accentLabel = accentLayers.length ? `・アクセント${accentLayers.length}点` : "";
       setStatus(`${theme.name} を背景・文字${accentLabel}セットで追加しました`);
     } catch {
@@ -686,12 +734,35 @@ function App() {
     commitProject((current) => ({
       ...current,
       layers: applyFinishPreset(
-        applyThumbnailTemplate(current.layers, preset),
+        applyTitleLayout(
+          applyThumbnailTemplate(applyTitleLayout(current.layers, "side-by-side"), preset),
+          "side-by-side",
+        ),
         preset === "center-impact" ? "pop-contrast" : "soft-morning",
       ),
     }));
     setSelectedId(null);
     setStatus("配置と仕上げをまとめて適用しました");
+  };
+
+  const applyTitleComposition = (preset: TitleLayoutPreset) => {
+    commitProject((current) => ({ ...current, layers: applyTitleLayout(current.layers, preset) }));
+    setSelectedId(null);
+    setStatus(`${titleLayoutLabels[preset]}の主題レイアウトを適用しました`);
+  };
+
+  const applySupport = (preset: SupportCopyPreset) => {
+    commitProject((current) => {
+      const themeId = current.layers.find(
+        (layer): layer is Extract<StudioLayer, { kind: "image" }> => (
+          layer.kind === "image" && layer.compositionRole === "main-title"
+        ),
+      )?.themeId;
+      const palette = themes.find((theme) => theme.id === themeId)?.palette || [];
+      return { ...current, layers: applySupportCopy(current.layers, preset, palette) };
+    });
+    setSelectedId(null);
+    setStatus(`${supportCopyLabels[preset]}を適用しました`);
   };
 
   const applyFinish = (preset: FinishPreset) => {
@@ -899,6 +970,9 @@ function App() {
                     <span>{theme.category} · 背景＋文字{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
                       ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
                       : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
+                    {theme.titleLayout || theme.supportCopy ? (
+                      <span>{titleLayoutLabels[theme.titleLayout || "side-by-side"]} · {supportCopyLabels[theme.supportCopy || "none"]}</span>
+                    ) : null}
                     <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
                   </div>
                 </button>
@@ -930,6 +1004,19 @@ function App() {
               <button onClick={() => applyPreset("character-right")}>文字左・人物右</button>
               <button onClick={() => applyPreset("character-left")}>人物左・文字右</button>
               <button onClick={() => applyPreset("center-impact")}>顔寄せインパクト</button>
+            </div>
+            <div className="preset-group finish-group">
+              <span>主題</span>
+              <button onClick={() => applyTitleComposition("split-character")}>朝｜人物｜活</button>
+              <button onClick={() => applyTitleComposition("diagonal-impact")}>斜め大文字</button>
+            </div>
+            <div className="preset-group finish-group">
+              <span>補助</span>
+              <button onClick={() => applySupport("stream")}>＋配信</button>
+              <button onClick={() => applySupport("casual")}>＋するよ！</button>
+              <button onClick={() => applySupport("reading")}>＋あさかつ</button>
+              <button onClick={() => applySupport("english")}>＋英字</button>
+              <button onClick={() => applySupport("none")}>なし</button>
             </div>
             <div className="preset-group finish-group">
               <span>仕上げ</span>

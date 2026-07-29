@@ -1,4 +1,13 @@
-import type { AssetType, HeadAnchor, ImageLayer, StudioLayer, TextLayer, ThumbnailProject } from "./types";
+import type {
+  AssetType,
+  HeadAnchor,
+  ImageLayer,
+  StudioLayer,
+  SupportCopyPreset,
+  TextLayer,
+  ThumbnailProject,
+  TitleLayoutPreset,
+} from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 
 export function createId(prefix: string) {
@@ -63,6 +72,15 @@ export function cloneLayer(layer: StudioLayer): StudioLayer {
 
 export type ThumbnailTemplate = "character-right" | "character-left" | "center-impact";
 export type FinishPreset = "soft-morning" | "pop-contrast";
+
+function findMainTitle(layers: StudioLayer[]) {
+  return [...layers].reverse().find(
+    (layer) => layer.compositionRole === "main-title"
+      || (layer.compositionRole !== "title-part"
+        && layer.compositionRole !== "support-copy"
+        && (layer.kind === "text" || layer.assetType === "texts")),
+  );
+}
 
 export function imageAppearanceDefaults(assetType: AssetType) {
   const isBackground = assetType === "backgrounds";
@@ -143,7 +161,9 @@ export function applyThumbnailTemplate(layers: StudioLayer[], preset: ThumbnailT
     (layer): layer is ImageLayer => layer.kind === "image" && layer.assetType === "characters",
   );
   const title = [...layers].reverse().find(
-    (layer) => layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts"),
+    (layer) => layer.compositionRole !== "support-copy"
+      && layer.compositionRole !== "title-part"
+      && (layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts")),
   );
 
   let next = layers.map((layer) => {
@@ -176,6 +196,160 @@ export function applyThumbnailTemplate(layers: StudioLayer[], preset: ThumbnailT
     next = [...next.filter((layer) => layer.id !== title.id), ...(titleLayer ? [titleLayer] : [])];
   }
   return next;
+}
+
+function splitTitleLayer(title: ImageLayer, start: number, end: number, name: string): ImageLayer {
+  const ratio = Math.max(0.2, Math.min(0.8, title.titleSplitRatio || 0.5));
+  const sourceStart = start === 0 ? 0 : ratio;
+  const sourceEnd = end === 1 ? 1 : ratio;
+  const sourceWidth = title.cropWidth || title.width;
+  const sourceHeight = title.cropHeight || title.height;
+  const cropX = title.cropX || 0;
+  const cropY = title.cropY || 0;
+  return {
+    ...title,
+    id: createId("title-part"),
+    name,
+    compositionRole: "title-part",
+    visible: true,
+    locked: false,
+    x: 0,
+    y: 0,
+    width: title.width * (sourceEnd - sourceStart),
+    height: title.height,
+    cropX: cropX + sourceWidth * sourceStart,
+    cropY,
+    cropWidth: sourceWidth * (sourceEnd - sourceStart),
+    cropHeight: sourceHeight,
+    scaleX: 1,
+    scaleY: 1,
+    rotation: 0,
+  };
+}
+
+function placeSupportCopy(layer: TextLayer, layers: StudioLayer[]): TextLayer {
+  if (layers.some((item) => item.compositionRole === "title-part")) {
+    return { ...layer, x: 430, y: 585, width: 420, height: 82, rotation: 0 };
+  }
+  const mainTitle = findMainTitle(layers);
+  if (mainTitle && Math.abs(mainTitle.rotation) >= 8) {
+    return { ...layer, x: 120, y: 570, width: 580, height: 88, rotation: -8 };
+  }
+  if (mainTitle && mainTitle.y >= 340) {
+    return { ...layer, x: 90, y: 78, width: 560, height: 92, rotation: -2 };
+  }
+  return { ...layer, x: 90, y: 510, width: 560, height: 92, rotation: -2 };
+}
+
+function supportCopyColors(palette: string[]) {
+  const valid = palette.filter((color) => /^#[0-9a-f]{6}$/i.test(color));
+  const luminance = (color: string) => {
+    const channels = [1, 3, 5].map((offset) => Number.parseInt(color.slice(offset, offset + 2), 16));
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const sorted = [...valid].sort((a, b) => luminance(a) - luminance(b));
+  return {
+    stroke: sorted[0] || "#243049",
+    fill: sorted.at(-1) || "#ffffff",
+    shadow: valid.find((color) => color !== sorted[0] && color !== sorted.at(-1)) || "#ff6f91",
+  };
+}
+
+export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPreset): StudioLayer[] {
+  const withoutParts = layers.filter((layer) => layer.compositionRole !== "title-part");
+  const source = findMainTitle(withoutParts);
+  if (!source) return withoutParts;
+
+  let next = withoutParts.map((layer) => layer.id === source.id
+    ? { ...layer, compositionRole: "main-title" as const, visible: true }
+    : layer);
+
+  if (preset === "side-by-side") {
+    return next.map((layer) => layer.kind === "text" && layer.compositionRole === "support-copy"
+      ? placeSupportCopy(layer, next)
+      : layer);
+  }
+
+  const character = [...next].reverse().find(
+    (layer): layer is ImageLayer => layer.kind === "image" && layer.assetType === "characters",
+  );
+
+  if (preset === "diagonal-impact") {
+    next = next.map((layer) => {
+      if (layer.id === source.id) {
+        return { ...fitLayerInBox(layer, { x: 10, y: 36, width: 900, height: 590 }, 0, 0.5), rotation: -12 };
+      }
+      if (layer.id === character?.id) {
+        const fallback = fitLayerInBox(character, { x: 690, y: -150, width: 650, height: 930 }, 1, 1);
+        return { ...placeCharacterByHead(character, { x: 1035, y: 240, headHeight: 405 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
+      }
+      return layer;
+    });
+  } else if (source.kind === "image") {
+    const left = fitLayerInBox(splitTitleLayer(source, 0, 0.5, "朝 · 分割タイトル"), { x: 30, y: 145, width: 400, height: 430 });
+    const right = fitLayerInBox(splitTitleLayer(source, 0.5, 1, "活 · 分割タイトル"), { x: 850, y: 145, width: 400, height: 430 });
+    next = next.map((layer) => {
+      if (layer.id === source.id) return { ...layer, visible: false };
+      if (layer.id === character?.id) {
+        const fallback = fitLayerInBox(character, { x: 330, y: -150, width: 620, height: 930 }, 0.5, 1);
+        return { ...placeCharacterByHead(character, { x: 640, y: 235, headHeight: 405 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
+      }
+      return layer;
+    });
+    next = [...next, left, right];
+  }
+
+  return next.map((layer) => layer.kind === "text" && layer.compositionRole === "support-copy"
+    ? placeSupportCopy(layer, next)
+    : layer);
+}
+
+export function applySupportCopy(
+  layers: StudioLayer[],
+  preset: SupportCopyPreset,
+  palette: string[] = [],
+): StudioLayer[] {
+  const withoutCopy = layers.filter((layer) => layer.compositionRole !== "support-copy");
+  if (preset === "none" || !findMainTitle(withoutCopy)) return withoutCopy;
+
+  const copy = {
+    stream: { text: "配信", fontSize: 84, fontFamily: "Hiragino Sans" },
+    casual: { text: "するよ！", fontSize: 68, fontFamily: "Hiragino Maru Gothic ProN" },
+    reading: { text: "あさかつ", fontSize: 58, fontFamily: "Hiragino Maru Gothic ProN" },
+    english: { text: "MORNING STREAM", fontSize: 46, fontFamily: "Arial Black" },
+  }[preset];
+  const colors = supportCopyColors(palette);
+  const layer: TextLayer = placeSupportCopy({
+    id: createId("support-copy"),
+    kind: "text",
+    name: `補助コピー · ${copy.text}`,
+    compositionRole: "support-copy",
+    supportCopyPreset: preset,
+    text: copy.text,
+    x: 0,
+    y: 0,
+    width: 650,
+    height: 110,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    scaleX: 1,
+    scaleY: 1,
+    fontFamily: copy.fontFamily,
+    fontSize: copy.fontSize,
+    fontStyle: "bold",
+    align: "center",
+    fill: colors.fill,
+    stroke: colors.stroke,
+    strokeWidth: preset === "english" ? 5 : 6,
+    shadowColor: colors.shadow,
+    shadowBlur: 0,
+    shadowOffsetX: 5,
+    shadowOffsetY: 5,
+    lineHeight: 0.95,
+  }, withoutCopy);
+  return [...withoutCopy, layer];
 }
 
 export function applyFinishPreset(layers: StudioLayer[], preset: FinishPreset): StudioLayer[] {
@@ -226,7 +400,8 @@ export function analyzeThumbnail(layers: StudioLayer[]) {
   const character = layers.find((layer) => layer.kind === "image" && layer.assetType === "characters");
   const background = layers.find((layer) => layer.kind === "image" && layer.assetType === "backgrounds");
   const title = layers.find(
-    (layer) => layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts"),
+    (layer) => layer.compositionRole !== "support-copy"
+      && (layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts")),
   );
   const checks = [
     { label: "人物", ok: Boolean(character) },
@@ -277,6 +452,7 @@ export function replaceThemeKitLayers(
       if (["title", "prop", "foreground-accent"].includes(layer.themeRole || "")) return false;
       return !(layer.themeId && (layer.assetType === "texts" || layer.assetType === "decorations"));
     })
+    .filter((layer) => layer.compositionRole !== "support-copy")
     .map((layer) => layer.kind === "text" ? { ...layer, visible: false } : layer);
   return [background, ...remaining, ...accents, title];
 }
