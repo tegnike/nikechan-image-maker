@@ -87,7 +87,6 @@ describe("thumbnail library storage", () => {
         shapeLanguage: "large curves",
         backgroundAssetPath: "backgrounds/2026/07/29/background.png",
         titleAssetPath: "texts/2026/07/29/title.png",
-        decorationAssetPaths: [],
         createdAt: new Date().toISOString(),
       }],
     }));

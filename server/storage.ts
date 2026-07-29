@@ -171,10 +171,9 @@ export async function listAssets(type: AssetType): Promise<Asset[]> {
   return assets;
 }
 
-type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "decorations"> & {
+type ThemeKitRecord = Omit<ThemeKit, "background" | "title"> & {
   backgroundAssetPath: string;
   titleAssetPath: string;
-  decorationAssetPaths: string[];
 };
 
 function themeAsset(assetPath: string, type: AssetType, themeId: string, createdAt: string): Asset {
@@ -210,7 +209,6 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
       createdAt: theme.createdAt,
       background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
       title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),
-      decorations: theme.decorationAssetPaths.map((assetPath) => themeAsset(assetPath, "decorations", theme.id, theme.createdAt)),
     }));
   } catch {
     return [];

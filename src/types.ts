@@ -35,7 +35,6 @@ export type ThemeKit = {
   shapeLanguage: string;
   background: Asset;
   title: Asset;
-  decorations: Asset[];
   createdAt: string;
 };
 

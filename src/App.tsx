@@ -42,13 +42,7 @@ import {
 } from "./lib";
 import type { FinishPreset, ThumbnailTemplate } from "./lib";
 
-const assetLabels: Record<AssetType, string> = {
-  characters: "キャラクター",
-  backgrounds: "背景",
-  texts: "文字",
-  decorations: "小物・枠",
-};
-type LibraryTab = AssetType | "themes";
+type LibraryTab = "characters" | "themes";
 
 const fonts = ["Hiragino Sans", "Hiragino Maru Gothic ProN", "Yu Gothic", "Arial Black", "sans-serif"];
 
@@ -643,10 +637,9 @@ function App() {
   const addTheme = async (theme: ThemeKit) => {
     setStatus(`${theme.name} を組み立てています…`);
     try {
-      const [background, title, ...decorations] = await Promise.all([
+      const [background, title] = await Promise.all([
         buildAssetLayer(theme.background),
         buildAssetLayer(theme.title),
-        ...theme.decorations.map(buildAssetLayer),
       ]);
       commitProject((current) => {
         const withoutOldBackground = current.layers.filter(
@@ -656,7 +649,7 @@ function App() {
           const isTitle = layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts");
           return isTitle ? { ...layer, visible: false } : layer;
         });
-        const assembled = [background, ...hiddenOldTitles, title, ...decorations];
+        const assembled = [background, ...hiddenOldTitles, title];
         return { ...current, layers: applyThumbnailTemplate(assembled, "character-right") };
       });
       setSelectedId(title.id);
@@ -860,18 +853,11 @@ function App() {
           </div>
           <div className="asset-tabs" role="tablist">
             <button className={assetType === "themes" ? "active" : ""} onClick={() => setAssetType("themes")}>テーマ</button>
-            {(Object.keys(assetLabels) as AssetType[]).map((type) => (
-              <button key={type} className={assetType === type ? "active" : ""} onClick={() => setAssetType(type)}>
-                {assetLabels[type]}
-              </button>
-            ))}
+            <button className={assetType === "characters" ? "active" : ""} onClick={() => setAssetType("characters")}>キャラクター</button>
           </div>
           <div className="asset-tip">
-            {assetType === "themes" && "同じ世界観で生成した背景・文字・前景をセットで追加します。"}
+            {assetType === "themes" && "同じ世界観で生成した背景と「朝活」文字をセットで追加します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
-            {assetType === "backgrounds" && "人物・文字なしのシンプルな16:9背景を使います。"}
-            {assetType === "texts" && "画像生成した装飾付き文字を、透過PNGで重ねます。"}
-            {assetType === "decorations" && "フレームや小物は少量を前景へ重ねます。"}
           </div>
           {assetType === "themes" ? (
             <div className="theme-grid">
@@ -894,7 +880,7 @@ function App() {
             <div className="asset-grid">
               {assets.map((asset) => (
                 <button key={asset.id} className="asset-card" onClick={() => addAsset(asset)} title={`${asset.name}を追加`}>
-                  <div className={assetType !== "backgrounds" ? "asset-thumb checker" : "asset-thumb"}>
+                  <div className="asset-thumb checker">
                     <img src={asset.url} alt="" />
                   </div>
                   <span>{asset.name}</span>
