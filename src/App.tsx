@@ -1,0 +1,792 @@
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  FolderOpen,
+  ImagePlus,
+  Layers3,
+  Lock,
+  LockOpen,
+  Plus,
+  Redo2,
+  Save,
+  Sparkles,
+  Trash2,
+  Type,
+  Undo2,
+  Upload,
+} from "lucide-react";
+import Konva from "konva";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThumbnailProject } from "./types";
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
+import { cloneLayer, createEmptyProject, createTitleLayer, moveItem, replaceBackgroundLayer, sanitizeProject, scaleLayerFromCenter } from "./lib";
+
+const assetLabels: Record<AssetType, string> = {
+  characters: "キャラクター",
+  backgrounds: "背景",
+  texts: "文字",
+  decorations: "小物・枠",
+};
+
+const fonts = ["Hiragino Sans", "Hiragino Maru Gothic ProN", "Yu Gothic", "Arial Black", "sans-serif"];
+
+function normalizedScale(value: number) {
+  return (value < 0 ? -1 : 1) * Math.max(0.05, Math.abs(value));
+}
+
+function useLoadedImage(src: string) {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    const next = new window.Image();
+    next.onload = () => setImage(next);
+    next.src = src;
+    return () => {
+      next.onload = null;
+    };
+  }, [src]);
+  return image;
+}
+
+function ImageNode({
+  layer,
+  selected,
+  onSelect,
+  onChange,
+}: {
+  layer: Extract<StudioLayer, { kind: "image" }>;
+  selected: boolean;
+  onSelect: () => void;
+  onChange: (patch: Partial<StudioLayer>) => void;
+}) {
+  const image = useLoadedImage(layer.src);
+  const nodeRef = useRef<Konva.Image>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+
+  useLayoutEffect(() => {
+    if (selected && nodeRef.current && transformerRef.current) {
+      transformerRef.current.nodes([nodeRef.current]);
+      transformerRef.current.moveToTop();
+      transformerRef.current.getLayer()?.batchDraw();
+    }
+  });
+
+  if (!image || !layer.visible) return null;
+  return (
+    <>
+      <KonvaImage
+        ref={nodeRef}
+        id={layer.id}
+        image={image}
+        x={layer.x}
+        y={layer.y}
+        width={layer.width}
+        height={layer.height}
+        scaleX={layer.scaleX}
+        scaleY={layer.scaleY}
+        rotation={layer.rotation}
+        opacity={layer.opacity}
+        draggable={!layer.locked}
+        onClick={onSelect}
+        onTap={onSelect}
+        onDragEnd={(event) => onChange({ x: event.target.x(), y: event.target.y() })}
+        onTransformEnd={() => {
+          const node = nodeRef.current;
+          if (!node) return;
+          onChange({
+            x: node.x(),
+            y: node.y(),
+            rotation: node.rotation(),
+            scaleX: normalizedScale(node.scaleX()),
+            scaleY: normalizedScale(node.scaleY()),
+          });
+        }}
+      />
+      {selected && !layer.locked ? (
+        <Transformer
+          ref={transformerRef}
+          rotateEnabled
+          flipEnabled
+          keepRatio
+          enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+          borderStroke="#6e5bff"
+          anchorStroke="#6e5bff"
+          anchorFill="#ffffff"
+          anchorSize={22}
+          anchorCornerRadius={5}
+          padding={5}
+          boundBoxFunc={(oldBox, newBox) =>
+            Math.abs(newBox.width) < 24 || Math.abs(newBox.height) < 24 ? oldBox : newBox
+          }
+        />
+      ) : null}
+    </>
+  );
+}
+
+function TextNode({
+  layer,
+  selected,
+  onSelect,
+  onChange,
+}: {
+  layer: Extract<StudioLayer, { kind: "text" }>;
+  selected: boolean;
+  onSelect: () => void;
+  onChange: (patch: Partial<StudioLayer>) => void;
+}) {
+  const nodeRef = useRef<Konva.Text>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+
+  useLayoutEffect(() => {
+    if (selected && nodeRef.current && transformerRef.current) {
+      transformerRef.current.nodes([nodeRef.current]);
+      transformerRef.current.moveToTop();
+      transformerRef.current.getLayer()?.batchDraw();
+    }
+  });
+
+  if (!layer.visible) return null;
+  return (
+    <>
+      <Text
+        ref={nodeRef}
+        id={layer.id}
+        text={layer.text}
+        x={layer.x}
+        y={layer.y}
+        width={layer.width}
+        height={layer.height}
+        scaleX={layer.scaleX}
+        scaleY={layer.scaleY}
+        rotation={layer.rotation}
+        opacity={layer.opacity}
+        draggable={!layer.locked}
+        fontFamily={layer.fontFamily}
+        fontSize={layer.fontSize}
+        fontStyle={layer.fontStyle}
+        align={layer.align}
+        verticalAlign="middle"
+        fill={layer.fill}
+        stroke={layer.stroke}
+        strokeWidth={layer.strokeWidth}
+        shadowColor={layer.shadowColor}
+        shadowBlur={layer.shadowBlur}
+        shadowOffsetX={layer.shadowOffsetX}
+        shadowOffsetY={layer.shadowOffsetY}
+        lineHeight={layer.lineHeight}
+        wrap="char"
+        lineJoin="round"
+        perfectDrawEnabled
+        onClick={onSelect}
+        onTap={onSelect}
+        onDragEnd={(event) => onChange({ x: event.target.x(), y: event.target.y() })}
+        onTransformEnd={() => {
+          const node = nodeRef.current;
+          if (!node) return;
+          onChange({
+            x: node.x(),
+            y: node.y(),
+            rotation: node.rotation(),
+            scaleX: normalizedScale(node.scaleX()),
+            scaleY: normalizedScale(node.scaleY()),
+          });
+        }}
+      />
+      {selected && !layer.locked ? (
+        <Transformer
+          ref={transformerRef}
+          rotateEnabled
+          flipEnabled
+          keepRatio
+          enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+          borderStroke="#6e5bff"
+          anchorStroke="#6e5bff"
+          anchorFill="#ffffff"
+          anchorSize={22}
+          anchorCornerRadius={5}
+          padding={5}
+          boundBoxFunc={(oldBox, newBox) =>
+            Math.abs(newBox.width) < 40 || Math.abs(newBox.height) < 24 ? oldBox : newBox
+          }
+        />
+      ) : null}
+    </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function App() {
+  const [project, setProject] = useState<ThumbnailProject>(() => createEmptyProject());
+  const [selectedId, setSelectedId] = useState<string | null>(project.layers.at(-1)?.id || null);
+  const [assetType, setAssetType] = useState<AssetType>("characters");
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [status, setStatus] = useState("準備中…");
+  const [preview, setPreview] = useState("");
+  const [scale, setScale] = useState(0.65);
+  const [showSafeArea, setShowSafeArea] = useState(true);
+  const stageRef = useRef<Konva.Stage>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<ThumbnailProject[]>([]);
+  const futureRef = useRef<ThumbnailProject[]>([]);
+
+  const selected = useMemo(
+    () => project.layers.find((layer) => layer.id === selectedId) || null,
+    [project.layers, selectedId],
+  );
+
+  const refreshAssets = useCallback(async (type: AssetType) => {
+    const response = await fetch(`/api/assets?type=${type}`);
+    const payload = await response.json();
+    setAssets(payload.assets || []);
+  }, []);
+
+  const refreshProjects = useCallback(async () => {
+    const response = await fetch("/api/projects");
+    const payload = await response.json();
+    setProjects(payload.projects || []);
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetch("/api/health").then((response) => response.json()), refreshAssets(assetType), refreshProjects()])
+      .then(([nextHealth]) => {
+        setHealth(nextHealth);
+        setStatus(nextHealth.writable ? "T7素材ライブラリに接続しました" : "素材ライブラリを確認してください");
+      })
+      .catch(() => setStatus("アプリの接続を確認してください"));
+  }, [assetType, refreshAssets, refreshProjects]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshAssets(assetType);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [assetType, refreshAssets]);
+
+  useEffect(() => {
+    const resize = () => {
+      const node = workspaceRef.current;
+      if (!node) return;
+      const availableWidth = Math.max(480, node.clientWidth - 56);
+      const availableHeight = Math.max(270, node.clientHeight - 56);
+      setScale(Math.min(availableWidth / CANVAS_WIDTH, availableHeight / CANVAS_HEIGHT, 1));
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    if (workspaceRef.current) observer.observe(workspaceRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const snapshot = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return "";
+    const transformerNodes = stage.find("Transformer");
+    transformerNodes.forEach((node) => node.hide());
+    stage.draw();
+    const url = stage.toDataURL({ pixelRatio: 0.25, mimeType: "image/png" });
+    transformerNodes.forEach((node) => node.show());
+    stage.draw();
+    return url;
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPreview(snapshot()), 180);
+    return () => window.clearTimeout(timer);
+  }, [project, snapshot]);
+
+  const commitProject = useCallback(
+    (updater: ThumbnailProject | ((current: ThumbnailProject) => ThumbnailProject)) => {
+      setProject((current) => {
+        historyRef.current = [...historyRef.current.slice(-49), structuredClone(current)];
+        futureRef.current = [];
+        const next = typeof updater === "function" ? updater(current) : updater;
+        return { ...next, updatedAt: new Date().toISOString() };
+      });
+    },
+    [],
+  );
+
+  const updateLayer = useCallback(
+    (id: string, patch: Partial<StudioLayer>) => {
+      commitProject((current) => ({
+        ...current,
+        layers: current.layers.map((layer) =>
+          layer.id === id ? ({ ...layer, ...patch } as StudioLayer) : layer,
+        ),
+      }));
+    },
+    [commitProject],
+  );
+
+  const undo = useCallback(() => {
+    const previous = historyRef.current.pop();
+    if (!previous) return;
+    futureRef.current.push(structuredClone(project));
+    setProject(previous);
+    setSelectedId(null);
+  }, [project]);
+
+  const redo = useCallback(() => {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    historyRef.current.push(structuredClone(project));
+    setProject(next);
+    setSelectedId(null);
+  }, [project]);
+
+  const deleteSelected = useCallback(() => {
+    if (!selectedId) return;
+    commitProject((current) => ({
+      ...current,
+      layers: current.layers.filter((layer) => layer.id !== selectedId),
+    }));
+    setSelectedId(null);
+  }, [commitProject, selectedId]);
+
+  const duplicateSelected = useCallback(() => {
+    if (!selected) return;
+    const copy = cloneLayer(selected);
+    commitProject((current) => ({ ...current, layers: [...current.layers, copy] }));
+    setSelectedId(copy.id);
+  }, [commitProject, selected]);
+
+  const resizeWithWheel = useCallback(
+    (event: Konva.KonvaEventObject<WheelEvent>) => {
+      const hoveredId = event.target.id();
+      const target = project.layers.find((layer) => layer.id === hoveredId)
+        || project.layers.find((layer) => layer.id === selectedId);
+      if (!target || target.locked || !target.visible || event.evt.deltaY === 0) return;
+
+      event.evt.preventDefault();
+      event.cancelBubble = true;
+      const limitedDelta = Math.min(40, Math.abs(event.evt.deltaY));
+      const factor = Math.exp((event.evt.deltaY < 0 ? 1 : -1) * limitedDelta * 0.0025);
+      const scaled = scaleLayerFromCenter(target, factor);
+      setSelectedId(target.id);
+      updateLayer(target.id, scaled);
+    },
+    [project.layers, selectedId, updateLayer],
+  );
+
+  useEffect(() => {
+    const keyboard = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement)?.tagName;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        event.shiftKey ? redo() : undo();
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedId) {
+        event.preventDefault();
+        deleteSelected();
+      }
+      if (selected && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        const amount = event.shiftKey ? 10 : 1;
+        const patch: Partial<StudioLayer> = {};
+        if (event.key === "ArrowLeft") patch.x = selected.x - amount;
+        if (event.key === "ArrowRight") patch.x = selected.x + amount;
+        if (event.key === "ArrowUp") patch.y = selected.y - amount;
+        if (event.key === "ArrowDown") patch.y = selected.y + amount;
+        updateLayer(selected.id, patch);
+      }
+    };
+    window.addEventListener("keydown", keyboard);
+    return () => window.removeEventListener("keydown", keyboard);
+  }, [deleteSelected, redo, selected, selectedId, undo, updateLayer]);
+
+  const addAsset = (asset: Asset) => {
+    const image = new window.Image();
+    image.onload = () => {
+      const isBackground = asset.type === "backgrounds";
+      const fit = isBackground
+        ? Math.max(CANVAS_WIDTH / image.naturalWidth, CANVAS_HEIGHT / image.naturalHeight)
+        : Math.min(640 / image.naturalWidth, 650 / image.naturalHeight, 1.5);
+      const layer: StudioLayer = {
+        id: `image-${Date.now().toString(36)}`,
+        kind: "image",
+        name: asset.name,
+        src: asset.url,
+        assetType: asset.type,
+        x: isBackground ? (CANVAS_WIDTH - image.naturalWidth * fit) / 2 : 620,
+        y: isBackground ? (CANVAS_HEIGHT - image.naturalHeight * fit) / 2 : CANVAS_HEIGHT - image.naturalHeight * fit,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        scaleX: fit,
+        scaleY: fit,
+      };
+      commitProject((current) => ({
+        ...current,
+        layers: isBackground ? replaceBackgroundLayer(current.layers, layer) : [...current.layers, layer],
+      }));
+      setSelectedId(layer.id);
+      setStatus(`${asset.name} を追加しました`);
+    };
+    image.src = asset.url;
+  };
+
+  const addText = () => {
+    const layer = createTitleLayer();
+    layer.name = project.layers.some((item) => item.kind === "text") ? "テキスト" : "メインタイトル";
+    layer.text = project.layers.some((item) => item.kind === "text") ? "新しい文字" : "朝活";
+    layer.y = 160 + project.layers.filter((item) => item.kind === "text").length * 50;
+    commitProject((current) => ({ ...current, layers: [...current.layers, layer] }));
+    setSelectedId(layer.id);
+  };
+
+  const applyPreset = (preset: "character-right" | "character-left" | "center-impact") => {
+    commitProject((current) => {
+      const character = [...current.layers].reverse().find((layer) => layer.kind === "image" && layer.assetType === "characters");
+      const title = current.layers.find((layer) => layer.kind === "text");
+      return {
+        ...current,
+        layers: current.layers.map((layer) => {
+          if (layer.id === character?.id) {
+            const visualWidth = layer.width * layer.scaleX;
+            if (preset === "character-right") return { ...layer, x: CANVAS_WIDTH - visualWidth + 80, y: 45 };
+            if (preset === "character-left") return { ...layer, x: -80, y: 45 };
+            return { ...layer, x: (CANVAS_WIDTH - visualWidth) / 2, y: 70, scaleX: layer.scaleX * 1.08, scaleY: layer.scaleY * 1.08 };
+          }
+          if (layer.id === title?.id && layer.kind === "text") {
+            if (preset === "character-right") return { ...layer, x: 35, y: 100, width: 670, rotation: -4 };
+            if (preset === "character-left") return { ...layer, x: 585, y: 110, width: 660, rotation: 4 };
+            return { ...layer, x: 230, y: 440, width: 820, rotation: 0 };
+          }
+          return layer;
+        }),
+      };
+    });
+    setStatus("構図プリセットを適用しました");
+  };
+
+  const uploadAssets = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const form = new FormData();
+    Array.from(files).forEach((file) => form.append("files", file));
+    setStatus("素材を追加しています…");
+    const response = await fetch(`/api/assets/${assetType}`, { method: "POST", body: form });
+    if (!response.ok) {
+      setStatus("素材を追加できませんでした");
+      return;
+    }
+    await refreshAssets(assetType);
+    setStatus(`${files.length}点を素材ライブラリへ追加しました`);
+  };
+
+  const saveCurrentProject = async () => {
+    setStatus("プロジェクトを保存しています…");
+    const response = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project: sanitizeProject(project) }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatus(payload.error || "保存できませんでした");
+      return;
+    }
+    setProject(payload.project);
+    await refreshProjects();
+    setStatus("プロジェクトを保存しました");
+  };
+
+  const loadSavedProject = async (id: string) => {
+    if (!id) return;
+    const response = await fetch(`/api/projects/${encodeURIComponent(id)}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatus("プロジェクトを開けませんでした");
+      return;
+    }
+    historyRef.current = [];
+    futureRef.current = [];
+    setProject(payload.project);
+    setSelectedId(null);
+    setStatus(`${payload.project.name} を開きました`);
+  };
+
+  const exportPng = async () => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    setStatus("1280×720 PNGを書き出しています…");
+    setSelectedId(null);
+    await new Promise((resolve) => window.setTimeout(resolve, 60));
+    const transformerNodes = stage.find("Transformer");
+    transformerNodes.forEach((node) => node.hide());
+    stage.draw();
+    const dataUrl = stage.toDataURL({ pixelRatio: 1, mimeType: "image/png" });
+    transformerNodes.forEach((node) => node.show());
+    stage.draw();
+    const response = await fetch("/api/exports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, projectName: project.name, dataUrl }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatus(payload.error || "書き出せませんでした");
+      return;
+    }
+    const anchor = document.createElement("a");
+    anchor.href = dataUrl;
+    anchor.download = `${project.name || "thumbnail"}.png`;
+    anchor.click();
+    setStatus(`保存しました · ${payload.savedTo}`);
+  };
+
+  const newProject = () => {
+    const next = createEmptyProject();
+    historyRef.current = [];
+    futureRef.current = [];
+    setProject(next);
+    setSelectedId(next.layers[0]?.id || null);
+    setStatus("新しいサムネイルを作成しました");
+  };
+
+  const reorderSelected = (direction: 1 | -1) => {
+    if (!selectedId) return;
+    commitProject((current) => {
+      const index = current.layers.findIndex((layer) => layer.id === selectedId);
+      const target = Math.min(current.layers.length - 1, Math.max(0, index + direction));
+      return index === target ? current : { ...current, layers: moveItem(current.layers, index, target) };
+    });
+  };
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand">
+          <div className="brand-mark"><Sparkles size={19} /></div>
+          <div>
+            <strong>Thumbnail Studio</strong>
+            <span>AIニケちゃん</span>
+          </div>
+        </div>
+        <div className="project-title-wrap">
+          <input
+            className="project-title"
+            aria-label="プロジェクト名"
+            value={project.name}
+            onChange={(event) => setProject((current) => ({ ...current, name: event.target.value }))}
+          />
+          <span>1280 × 720</span>
+        </div>
+        <div className="top-actions">
+          <button className="icon-button" title="元に戻す" onClick={undo}><Undo2 size={18} /></button>
+          <button className="icon-button" title="やり直す" onClick={redo}><Redo2 size={18} /></button>
+          <button className="secondary-button" onClick={newProject}><Plus size={17} />新規</button>
+          <button className="secondary-button" onClick={saveCurrentProject}><Save size={17} />保存</button>
+          <button className="primary-button" onClick={exportPng}><Download size={17} />PNG書き出し</button>
+        </div>
+      </header>
+
+      <main className="studio-grid">
+        <aside className="asset-panel panel">
+          <div className="panel-heading">
+            <div><span className="eyebrow">ASSET LIBRARY</span><h2>素材</h2></div>
+            <label className="icon-button upload-button" title="素材を追加">
+              <Upload size={17} />
+              <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => uploadAssets(event.target.files)} />
+            </label>
+          </div>
+          <div className="asset-tabs" role="tablist">
+            {(Object.keys(assetLabels) as AssetType[]).map((type) => (
+              <button key={type} className={assetType === type ? "active" : ""} onClick={() => setAssetType(type)}>
+                {assetLabels[type]}
+              </button>
+            ))}
+          </div>
+          <div className="asset-tip">
+            {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
+            {assetType === "backgrounds" && "人物・文字なしのシンプルな16:9背景を使います。"}
+            {assetType === "texts" && "画像生成した装飾付き文字を、透過PNGで重ねます。"}
+            {assetType === "decorations" && "フレームや小物は少量を前景へ重ねます。"}
+          </div>
+          <div className="asset-grid">
+            {assets.map((asset) => (
+              <button key={asset.id} className="asset-card" onClick={() => addAsset(asset)} title={`${asset.name}を追加`}>
+                <div className={assetType !== "backgrounds" ? "asset-thumb checker" : "asset-thumb"}>
+                  <img src={asset.url} alt="" />
+                </div>
+                <span>{asset.name}</span>
+                {asset.source === "reference" ? <em>公式資料</em> : null}
+              </button>
+            ))}
+            {!assets.length ? (
+              <div className="empty-assets"><ImagePlus size={28} /><p>まだ素材がありません</p><span>上の追加ボタンから登録できます</span></div>
+            ) : null}
+          </div>
+        </aside>
+
+        <section className="workspace" ref={workspaceRef}>
+          <div className="workspace-toolbar">
+            <div className="preset-group">
+              <span>構図</span>
+              <button onClick={() => applyPreset("character-right")}>文字左・人物右</button>
+              <button onClick={() => applyPreset("character-left")}>人物左・文字右</button>
+              <button onClick={() => applyPreset("center-impact")}>中央インパクト</button>
+            </div>
+            <label className="safe-toggle">
+              <input type="checkbox" checked={showSafeArea} onChange={(event) => setShowSafeArea(event.target.checked)} />
+              セーフエリア
+            </label>
+            <button className="add-text-button" onClick={addText}><Type size={16} />文字を追加</button>
+          </div>
+          <div className="canvas-viewport">
+            <div
+              className="canvas-scale-wrap"
+              style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}
+            >
+              <div className="canvas-stage" style={{ transform: `scale(${scale})` }}>
+                <Stage
+                  ref={stageRef}
+                  width={CANVAS_WIDTH}
+                  height={CANVAS_HEIGHT}
+                  onWheel={resizeWithWheel}
+                  onMouseDown={(event) => event.target === event.target.getStage() && setSelectedId(null)}
+                  onTouchStart={(event) => event.target === event.target.getStage() && setSelectedId(null)}
+                >
+                  <Layer>
+                    <Rect width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill={project.backgroundColor} listening={false} />
+                    {project.layers.map((layer) =>
+                      layer.kind === "image" ? (
+                        <ImageNode
+                          key={layer.id}
+                          layer={layer}
+                          selected={selectedId === layer.id}
+                          onSelect={() => !layer.locked && setSelectedId(layer.id)}
+                          onChange={(patch) => updateLayer(layer.id, patch)}
+                        />
+                      ) : (
+                        <TextNode
+                          key={layer.id}
+                          layer={layer}
+                          selected={selectedId === layer.id}
+                          onSelect={() => !layer.locked && setSelectedId(layer.id)}
+                          onChange={(patch) => updateLayer(layer.id, patch)}
+                        />
+                      ),
+                    )}
+                  </Layer>
+                </Stage>
+                {showSafeArea ? <div className="safe-area-overlay"><span>セーフエリア</span></div> : null}
+              </div>
+            </div>
+          </div>
+          <div className="statusbar">
+            <span className={health?.writable ? "health-dot online" : "health-dot"} />
+            <span className="status-text">{status}</span>
+            <span className="canvas-help">要素を選択 → ホイール / 四隅ドラッグで拡大縮小</span>
+            <span className="zoom">{Math.round(scale * 100)}%</span>
+          </div>
+        </section>
+
+        <aside className="inspector-panel panel">
+          <section className="preview-section">
+            <div className="section-title"><span>縮小プレビュー</span><small>320 × 180</small></div>
+            <div className="mini-preview">{preview ? <img src={preview} alt="サムネイル縮小プレビュー" /> : null}</div>
+            <p>スマートフォン表示でも、顔と主題文字が読めるか確認します。</p>
+          </section>
+
+          <section className="projects-section">
+            <div className="section-title"><span>保存済み</span><FolderOpen size={15} /></div>
+            <div className="select-wrap">
+              <select aria-label="保存済みプロジェクト" value="" onChange={(event) => loadSavedProject(event.target.value)}>
+                <option value="">プロジェクトを開く…</option>
+                {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+              <ChevronDown size={15} />
+            </div>
+          </section>
+
+          <section className="layers-section">
+            <div className="section-title"><span>レイヤー</span><Layers3 size={15} /></div>
+            <div className="layer-list">
+              {[...project.layers].reverse().map((layer) => (
+                <button key={layer.id} className={`layer-row ${selectedId === layer.id ? "selected" : ""}`} onClick={() => setSelectedId(layer.id)}>
+                  <span className="layer-kind">{layer.kind === "text" ? <Type size={14} /> : <ImagePlus size={14} />}</span>
+                  <span className="layer-name">{layer.name}</span>
+                  <span className="layer-state">{layer.locked ? <Lock size={12} /> : null}{layer.visible ? null : <EyeOff size={13} />}</span>
+                </button>
+              ))}
+            </div>
+            <div className="layer-actions">
+              <button title="前面へ" onClick={() => reorderSelected(1)}><ArrowUp size={15} /></button>
+              <button title="背面へ" onClick={() => reorderSelected(-1)}><ArrowDown size={15} /></button>
+              <button title="複製" onClick={duplicateSelected}><Copy size={15} /></button>
+              <button title="削除" onClick={deleteSelected}><Trash2 size={15} /></button>
+            </div>
+          </section>
+
+          <section className="properties-section">
+            <div className="section-title"><span>調整</span><small>{selected ? selected.kind === "text" ? "TEXT" : "IMAGE" : "未選択"}</small></div>
+            {!selected ? <div className="empty-properties">キャンバスかレイヤー一覧から<br />編集する要素を選択してください。</div> : (
+              <div className="property-grid">
+                <Field label="レイヤー名"><input value={selected.name} onChange={(event) => updateLayer(selected.id, { name: event.target.value })} /></Field>
+                {selected.kind === "text" ? (
+                  <>
+                    <Field label="表示文字"><textarea rows={2} value={selected.text} onChange={(event) => updateLayer(selected.id, { text: event.target.value })} /></Field>
+                    <Field label="フォント"><select value={selected.fontFamily} onChange={(event) => updateLayer(selected.id, { fontFamily: event.target.value })}>{fonts.map((font) => <option key={font}>{font}</option>)}</select></Field>
+                    <div className="two-fields">
+                      <Field label="文字サイズ"><input type="number" min="8" max="360" value={selected.fontSize} onChange={(event) => updateLayer(selected.id, { fontSize: Number(event.target.value) })} /></Field>
+                      <Field label="太さ"><select value={selected.fontStyle} onChange={(event) => updateLayer(selected.id, { fontStyle: event.target.value as "normal" | "bold" })}><option value="bold">太字</option><option value="normal">標準</option></select></Field>
+                    </div>
+                    <div className="color-fields">
+                      <Field label="文字色"><input type="color" value={selected.fill} onChange={(event) => updateLayer(selected.id, { fill: event.target.value })} /></Field>
+                      <Field label="縁色"><input type="color" value={selected.stroke} onChange={(event) => updateLayer(selected.id, { stroke: event.target.value })} /></Field>
+                      <Field label="影色"><input type="color" value={selected.shadowColor} onChange={(event) => updateLayer(selected.id, { shadowColor: event.target.value })} /></Field>
+                    </div>
+                    <div className="two-fields">
+                      <Field label="縁の太さ"><input type="range" min="0" max="32" value={selected.strokeWidth} onChange={(event) => updateLayer(selected.id, { strokeWidth: Number(event.target.value) })} /></Field>
+                      <Field label="影の距離"><input type="range" min="0" max="36" value={selected.shadowOffsetX} onChange={(event) => updateLayer(selected.id, { shadowOffsetX: Number(event.target.value), shadowOffsetY: Number(event.target.value) })} /></Field>
+                    </div>
+                    <Field label="文字揃え"><div className="segmented">{(["left", "center", "right"] as const).map((align) => <button key={align} className={selected.align === align ? "active" : ""} onClick={() => updateLayer(selected.id, { align })}>{align === "left" ? "左" : align === "center" ? "中央" : "右"}</button>)}</div></Field>
+                  </>
+                ) : null}
+                <div className="two-fields">
+                  <Field label="X"><input aria-label="X" type="number" value={Math.round(selected.x)} onChange={(event) => updateLayer(selected.id, { x: Number(event.target.value) })} /></Field>
+                  <Field label="Y"><input aria-label="Y" type="number" value={Math.round(selected.y)} onChange={(event) => updateLayer(selected.id, { y: Number(event.target.value) })} /></Field>
+                </div>
+                <div className="two-fields">
+                  <Field label="横サイズ %"><input aria-label="横サイズ %" type="number" min="5" max="500" value={Math.round(Math.abs(selected.scaleX) * 100)} onChange={(event) => updateLayer(selected.id, { scaleX: (selected.scaleX < 0 ? -1 : 1) * Math.max(0.05, Number(event.target.value) / 100) })} /></Field>
+                  <Field label="縦サイズ %"><input aria-label="縦サイズ %" type="number" min="5" max="500" value={Math.round(Math.abs(selected.scaleY) * 100)} onChange={(event) => updateLayer(selected.id, { scaleY: (selected.scaleY < 0 ? -1 : 1) * Math.max(0.05, Number(event.target.value) / 100) })} /></Field>
+                </div>
+                <div className="two-fields">
+                  <Field label="回転"><input aria-label="回転" type="number" value={Math.round(selected.rotation)} onChange={(event) => updateLayer(selected.id, { rotation: Number(event.target.value) })} /></Field>
+                  <Field label="不透明度"><input aria-label="不透明度" type="number" min="0" max="100" value={Math.round(selected.opacity * 100)} onChange={(event) => updateLayer(selected.id, { opacity: Number(event.target.value) / 100 })} /></Field>
+                </div>
+                <div className="visibility-actions">
+                  <button onClick={() => updateLayer(selected.id, { visible: !selected.visible })}>{selected.visible ? <Eye size={15} /> : <EyeOff size={15} />}{selected.visible ? "表示中" : "非表示"}</button>
+                  <button onClick={() => updateLayer(selected.id, { locked: !selected.locked })}>{selected.locked ? <Lock size={15} /> : <LockOpen size={15} />}{selected.locked ? "固定中" : "編集可"}</button>
+                  <button onClick={() => updateLayer(selected.id, { scaleX: -selected.scaleX })}>左右反転</button>
+                  <button onClick={() => updateLayer(selected.id, { scaleY: -selected.scaleY })}>上下反転</button>
+                </div>
+              </div>
+            )}
+          </section>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+export default App;
