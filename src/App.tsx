@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
 import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThumbnailProject } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
@@ -35,6 +35,7 @@ import {
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
+  remapHeadAnchorToCrop,
   sanitizeProject,
   scaleLayerFromCenter,
 } from "./lib";
@@ -209,6 +210,36 @@ function ImageNode({
           });
         }}
       />
+      {selected && layer.assetType === "characters" && layer.headAnchor ? (
+        <Group
+          x={layer.x}
+          y={layer.y}
+          scaleX={layer.scaleX}
+          scaleY={layer.scaleY}
+          rotation={layer.rotation}
+          listening={false}
+        >
+          <Rect
+            x={(layer.headAnchor.centerX - layer.headAnchor.width / 2) * layer.width}
+            y={(layer.headAnchor.centerY - layer.headAnchor.height / 2) * layer.height}
+            width={layer.headAnchor.width * layer.width}
+            height={layer.headAnchor.height * layer.height}
+            stroke="#00e5ff"
+            strokeWidth={4}
+            dash={[12, 8]}
+            strokeScaleEnabled={false}
+          />
+          <Circle
+            x={layer.headAnchor.centerX * layer.width}
+            y={layer.headAnchor.centerY * layer.height}
+            radius={8}
+            fill="#ff3eb5"
+            stroke="#ffffff"
+            strokeWidth={3}
+            strokeScaleEnabled={false}
+          />
+        </Group>
+      ) : null}
       {layer.assetType === "backgrounds" && (layer.tintOpacity || 0) > 0 ? (
         <Rect
           width={CANVAS_WIDTH}
@@ -556,7 +587,11 @@ function App() {
         kind: "image",
         name: asset.name,
         src: asset.url,
+        assetPath: asset.assetPath,
         assetType: asset.type,
+        headAnchor: asset.headAnchor
+          ? remapHeadAnchorToCrop(asset.headAnchor, image.naturalWidth, image.naturalHeight, bounds)
+          : undefined,
         x,
         y,
         width: bounds.width,
@@ -629,6 +664,9 @@ function App() {
         cropY: bounds.y,
         cropWidth: bounds.width,
         cropHeight: bounds.height,
+        headAnchor: selected.headAnchor
+          ? remapHeadAnchorToCrop(selected.headAnchor, image.naturalWidth, image.naturalHeight, bounds)
+          : undefined,
       });
       setStatus("透明余白を除去しました");
     };
@@ -937,6 +975,26 @@ function App() {
                 ) : null}
                 {selected.kind === "image" ? (
                   <>
+                    {selected.assetType === "characters" ? (
+                      <div className="appearance-panel">
+                        <span className="subsection-label">頭部アンカー</span>
+                        {selected.headAnchor ? (
+                          <>
+                            <div className="two-fields">
+                              <Field label="中心 X %"><input type="number" min="-20" max="120" value={Math.round(selected.headAnchor.centerX * 100)} onChange={(event) => updateLayer(selected.id, { headAnchor: { ...selected.headAnchor!, centerX: Number(event.target.value) / 100, method: "manual" } })} /></Field>
+                              <Field label="中心 Y %"><input type="number" min="-20" max="120" value={Math.round(selected.headAnchor.centerY * 100)} onChange={(event) => updateLayer(selected.id, { headAnchor: { ...selected.headAnchor!, centerY: Number(event.target.value) / 100, method: "manual" } })} /></Field>
+                            </div>
+                            <div className="two-fields">
+                              <Field label="頭部幅 %"><input type="number" min="5" max="100" value={Math.round(selected.headAnchor.width * 100)} onChange={(event) => updateLayer(selected.id, { headAnchor: { ...selected.headAnchor!, width: Math.max(0.05, Number(event.target.value) / 100), method: "manual" } })} /></Field>
+                              <Field label="頭部高 %"><input type="number" min="5" max="100" value={Math.round(selected.headAnchor.height * 100)} onChange={(event) => updateLayer(selected.id, { headAnchor: { ...selected.headAnchor!, height: Math.max(0.05, Number(event.target.value) / 100), method: "manual" } })} /></Field>
+                            </div>
+                            <small>水色枠が頭部、ピンク点が配置基準です。完成テンプレートはこの位置と大きさを使います。</small>
+                          </>
+                        ) : (
+                          <button className="trim-button" onClick={() => updateLayer(selected.id, { headAnchor: { centerX: 0.5, centerY: 0.2, width: 0.36, height: 0.28, method: "manual", confidence: 0.5 } })}>頭部位置を手動設定</button>
+                        )}
+                      </div>
+                    ) : null}
                     {selected.assetType === "backgrounds" ? (
                       <div className="appearance-panel">
                         <span className="subsection-label">背景を抑える</span>

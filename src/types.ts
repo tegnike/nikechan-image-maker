@@ -3,13 +3,26 @@ export const CANVAS_HEIGHT = 720;
 
 export type AssetType = "characters" | "backgrounds" | "texts" | "decorations";
 
+export type HeadAnchor = {
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
+  sourceWidth?: number;
+  sourceHeight?: number;
+  method: "anime-face-cascade-reviewed" | "manual-reviewed" | "manual";
+  confidence: number;
+};
+
 export type Asset = {
   id: string;
   name: string;
   type: AssetType;
   url: string;
+  assetPath?: string;
   source: "library" | "reference";
   createdAt: string;
+  headAnchor?: HeadAnchor;
 };
 
 type LayerBase = {
@@ -30,7 +43,9 @@ type LayerBase = {
 export type ImageLayer = LayerBase & {
   kind: "image";
   src: string;
+  assetPath?: string;
   assetType: AssetType;
+  headAnchor?: HeadAnchor;
   cropX?: number;
   cropY?: number;
   cropWidth?: number;

@@ -9,6 +9,7 @@ import {
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
+  remapHeadAnchorToCrop,
   sanitizeProject,
   scaleLayerFromCenter,
 } from "./lib";
@@ -115,6 +116,52 @@ describe("thumbnail project model", () => {
     expect(arranged.at(-1)?.id).toBe(titleImage.id);
     expect(arrangedTitle.x).toBeLessThan(100);
     expect(Math.abs(arrangedTitle.width * arrangedTitle.scaleX)).toBeGreaterThan(600);
+  });
+
+  it("positions and scales a character from its head anchor", () => {
+    const base = createTitleLayer();
+    const character = {
+      ...base,
+      id: "anchored-character",
+      kind: "image" as const,
+      src: "/character.png",
+      assetType: "characters" as const,
+      width: 600,
+      height: 1400,
+      headAnchor: {
+        centerX: 0.5,
+        centerY: 0.18,
+        width: 0.4,
+        height: 0.25,
+        method: "manual-reviewed" as const,
+        confidence: 0.95,
+      },
+    };
+    const arranged = applyThumbnailTemplate([base, character], "center-impact");
+    const next = arranged.find((layer) => layer.id === character.id)!;
+    const anchor = character.headAnchor;
+
+    expect(next.kind).toBe("image");
+    expect(next.height * Math.abs(next.scaleY) * anchor.height).toBeCloseTo(510);
+    expect(next.x + next.width * next.scaleX * anchor.centerX).toBeCloseTo(950);
+    expect(next.y + next.height * next.scaleY * anchor.centerY).toBeCloseTo(260);
+  });
+
+  it("remaps a source head anchor after transparent whitespace is cropped", () => {
+    const anchor = {
+      centerX: 0.5,
+      centerY: 0.25,
+      width: 0.3,
+      height: 0.2,
+      method: "manual-reviewed" as const,
+      confidence: 0.95,
+    };
+    const remapped = remapHeadAnchorToCrop(anchor, 1000, 1600, { x: 100, y: 40, width: 800, height: 1480 });
+
+    expect(remapped.centerX).toBeCloseTo(0.5);
+    expect(remapped.centerY).toBeCloseTo(360 / 1480);
+    expect(remapped.width).toBeCloseTo(0.375);
+    expect(remapped.height).toBeCloseTo(320 / 1480);
   });
 
   it("applies separation and background suppression finishing", () => {

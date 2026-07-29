@@ -1,4 +1,4 @@
-import type { AssetType, ImageLayer, StudioLayer, TextLayer, ThumbnailProject } from "./types";
+import type { AssetType, HeadAnchor, ImageLayer, StudioLayer, TextLayer, ThumbnailProject } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 
 export function createId(prefix: string) {
@@ -105,9 +105,42 @@ function fitLayerInBox<T extends StudioLayer>(
   };
 }
 
+export function remapHeadAnchorToCrop(
+  anchor: HeadAnchor,
+  sourceWidth: number,
+  sourceHeight: number,
+  crop: { x: number; y: number; width: number; height: number },
+): HeadAnchor {
+  return {
+    ...anchor,
+    centerX: (anchor.centerX * sourceWidth - crop.x) / crop.width,
+    centerY: (anchor.centerY * sourceHeight - crop.y) / crop.height,
+    width: anchor.width * sourceWidth / crop.width,
+    height: anchor.height * sourceHeight / crop.height,
+  };
+}
+
+function placeCharacterByHead<T extends ImageLayer>(
+  layer: T,
+  target: { x: number; y: number; headHeight: number },
+): T {
+  const anchor = layer.headAnchor;
+  if (!anchor || anchor.height <= 0) return layer;
+  const scale = target.headHeight / (layer.height * anchor.height);
+  const scaleX = layer.scaleX < 0 ? -scale : scale;
+  const scaleY = layer.scaleY < 0 ? -scale : scale;
+  return {
+    ...layer,
+    x: target.x - layer.width * anchor.centerX * scaleX,
+    y: target.y - layer.height * anchor.centerY * scaleY,
+    scaleX,
+    scaleY,
+  };
+}
+
 export function applyThumbnailTemplate(layers: StudioLayer[], preset: ThumbnailTemplate): StudioLayer[] {
   const character = [...layers].reverse().find(
-    (layer) => layer.kind === "image" && layer.assetType === "characters",
+    (layer): layer is ImageLayer => layer.kind === "image" && layer.assetType === "characters",
   );
   const title = [...layers].reverse().find(
     (layer) => layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts"),
@@ -116,12 +149,15 @@ export function applyThumbnailTemplate(layers: StudioLayer[], preset: ThumbnailT
   let next = layers.map((layer) => {
     if (layer.id === character?.id) {
       if (preset === "character-right") {
-        return { ...fitLayerInBox(layer, { x: 650, y: -110, width: 690, height: 900 }, 1, 1), rotation: 0 };
+        const fallback = fitLayerInBox(character, { x: 650, y: -110, width: 690, height: 900 }, 1, 1);
+        return { ...placeCharacterByHead(character, { x: 1030, y: 235, headHeight: 370 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
       }
       if (preset === "character-left") {
-        return { ...fitLayerInBox(layer, { x: -60, y: -110, width: 690, height: 900 }, 0, 1), rotation: 0 };
+        const fallback = fitLayerInBox(character, { x: -60, y: -110, width: 690, height: 900 }, 0, 1);
+        return { ...placeCharacterByHead(character, { x: 250, y: 235, headHeight: 370 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
       }
-      return { ...fitLayerInBox(layer, { x: 430, y: -210, width: 850, height: 1040 }, 1, 1), rotation: 0 };
+      const fallback = fitLayerInBox(character, { x: 430, y: -210, width: 850, height: 1040 }, 1, 1);
+      return { ...placeCharacterByHead(character, { x: 950, y: 260, headHeight: 510 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
     }
     if (layer.id === title?.id) {
       if (preset === "character-right") {

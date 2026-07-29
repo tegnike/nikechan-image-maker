@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -44,5 +44,33 @@ describe("thumbnail library storage", () => {
     expect(storage.safeId("朝活サムネイル・シンプル構成")).toBe("朝活サムネイル-シンプル構成");
     expect(storage.safeId("../../escape")).toBe("escape");
     expect(storage.safeFileName("朝活/背景?.png")).toBe("背景-.png");
+  });
+
+  it("attaches stored head anchors to character assets", async () => {
+    const characterDir = path.join(storage.ASSETS_ROOT, "characters", "2026", "07", "29");
+    await mkdir(characterDir, { recursive: true });
+    await writeFile(path.join(characterDir, "character.png"), "test");
+    await writeFile(storage.HEAD_ANCHORS_PATH, JSON.stringify({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      anchors: {
+        "characters/2026/07/29/character.png": {
+          centerX: 0.5,
+          centerY: 0.2,
+          width: 0.4,
+          height: 0.3,
+          sourceWidth: 1000,
+          sourceHeight: 1600,
+          method: "manual-reviewed",
+          confidence: 0.95,
+        },
+      },
+    }));
+
+    const assets = await storage.listAssets("characters");
+    expect(assets.find((asset) => asset.name === "character")).toMatchObject({
+      assetPath: "characters/2026/07/29/character.png",
+      headAnchor: { centerX: 0.5, centerY: 0.2 },
+    });
   });
 });

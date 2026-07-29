@@ -1,7 +1,8 @@
 import { constants as fsConstants } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Asset, AssetType, ProjectSummary, ThumbnailProject } from "../src/types";
+import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, ThumbnailProject } from "../src/types";
+import { remapHeadAnchorToCrop } from "../src/lib";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
 export const LIBRARY_ROOT = path.resolve(
@@ -11,6 +12,7 @@ export const ASSETS_ROOT = path.join(LIBRARY_ROOT, "assets");
 export const PROJECTS_ROOT = path.join(LIBRARY_ROOT, "projects");
 export const EXPORTS_ROOT = path.join(LIBRARY_ROOT, "exports");
 export const PROMPTS_ROOT = path.join(LIBRARY_ROOT, "prompts");
+export const HEAD_ANCHORS_PATH = path.join(LIBRARY_ROOT, "head-anchors.json");
 export const REFERENCES_ROOT = path.join(PROJECT_ROOT, "references");
 
 export const ASSET_TYPES: AssetType[] = ["characters", "backgrounds", "texts", "decorations"];
@@ -81,16 +83,75 @@ function assetUrl(prefix: string, relative: string) {
   return `${prefix}/${relative.split(path.sep).map(encodeURIComponent).join("/")}`;
 }
 
+type HeadAnchorIndex = {
+  version: 1;
+  updatedAt: string;
+  anchors: Record<string, HeadAnchor>;
+};
+
+function portablePath(value: string) {
+  return value.split(path.sep).join("/");
+}
+
+export async function loadHeadAnchors(): Promise<HeadAnchorIndex> {
+  try {
+    const parsed = JSON.parse(await readFile(HEAD_ANCHORS_PATH, "utf8")) as HeadAnchorIndex;
+    return parsed.version === 1 && parsed.anchors && typeof parsed.anchors === "object"
+      ? parsed
+      : { version: 1, updatedAt: new Date(0).toISOString(), anchors: {} };
+  } catch {
+    return { version: 1, updatedAt: new Date(0).toISOString(), anchors: {} };
+  }
+}
+
+function libraryAssetPathFromUrl(src: string) {
+  const prefix = "/library-assets/";
+  if (!src.startsWith(prefix)) return null;
+  try {
+    return decodeURIComponent(src.slice(prefix.length));
+  } catch {
+    return null;
+  }
+}
+
+function anchorForLayer(layer: ImageLayer, anchor: HeadAnchor) {
+  if (!anchor.sourceWidth || !anchor.sourceHeight || !layer.cropWidth || !layer.cropHeight) return anchor;
+  return remapHeadAnchorToCrop(anchor, anchor.sourceWidth, anchor.sourceHeight, {
+    x: layer.cropX || 0,
+    y: layer.cropY || 0,
+    width: layer.cropWidth,
+    height: layer.cropHeight,
+  });
+}
+
+async function hydrateProjectHeadAnchors(project: ThumbnailProject): Promise<ThumbnailProject> {
+  const index = await loadHeadAnchors();
+  return {
+    ...project,
+    layers: project.layers.map((layer) => {
+      if (layer.kind !== "image" || layer.assetType !== "characters" || layer.headAnchor) return layer;
+      const assetPath = layer.assetPath || libraryAssetPathFromUrl(layer.src) || undefined;
+      const anchor = assetPath ? index.anchors[portablePath(assetPath)] : undefined;
+      return anchor ? { ...layer, assetPath, headAnchor: anchorForLayer(layer, anchor) } : layer;
+    }),
+  };
+}
+
 export async function listAssets(type: AssetType): Promise<Asset[]> {
   const root = path.join(ASSETS_ROOT, type);
-  const libraryFiles = await walkImages(root);
+  const [libraryFiles, headAnchors] = await Promise.all([
+    walkImages(root),
+    type === "characters" ? loadHeadAnchors() : Promise.resolve(null),
+  ]);
   const assets: Asset[] = libraryFiles.map((file) => ({
     id: `${type}:${file.relative}`,
     name: path.parse(file.relative).name,
     type,
     url: assetUrl(`/library-assets/${type}`, file.relative),
+    assetPath: portablePath(path.join(type, file.relative)),
     source: "library",
     createdAt: file.mtime.toISOString(),
+    headAnchor: headAnchors?.anchors[portablePath(path.join(type, file.relative))],
   }));
 
   if (type === "characters") {
@@ -143,7 +204,7 @@ export async function saveProject(project: ThumbnailProject) {
 
 export async function loadProject(id: string): Promise<ThumbnailProject> {
   const content = await readFile(path.join(PROJECTS_ROOT, `${safeId(id)}.json`), "utf8");
-  return JSON.parse(content) as ThumbnailProject;
+  return hydrateProjectHeadAnchors(JSON.parse(content) as ThumbnailProject);
 }
 
 export async function listProjects(): Promise<ProjectSummary[]> {
