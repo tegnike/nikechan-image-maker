@@ -204,9 +204,19 @@ function themeAsset(assetPath: string, type: AssetType, themeId: string, created
 
 export async function listThemeKits(): Promise<ThemeKit[]> {
   try {
-    const parsed = JSON.parse(await readFile(THEME_KITS_PATH, "utf8")) as { version: number; themes: ThemeKitRecord[] };
-    if (parsed.version !== 1 || !Array.isArray(parsed.themes)) return [];
-    return parsed.themes.map((theme) => ({
+    const parsed = JSON.parse(await readFile(THEME_KITS_PATH, "utf8")) as unknown;
+    const themes = !Array.isArray(parsed)
+      && typeof parsed === "object"
+      && parsed !== null
+      && (parsed as { version?: unknown }).version === 1
+      && Array.isArray((parsed as { themes?: unknown }).themes)
+      ? (parsed as { themes: ThemeKitRecord[] }).themes
+      : Array.isArray(parsed)
+        ? parsed.filter((item): item is ThemeKitRecord => (
+          typeof item === "object" && item !== null && "id" in item
+        ))
+        : [];
+    return themes.map((theme) => ({
       id: theme.id,
       name: theme.name,
       category: theme.category,

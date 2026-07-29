@@ -109,4 +109,26 @@ describe("thumbnail library storage", () => {
       }],
     });
   });
+
+  it("salvages theme records from a malformed root array", async () => {
+    await writeFile(storage.THEME_KITS_PATH, JSON.stringify([
+      "version",
+      "themes",
+      {
+        id: "recovered-theme",
+        name: "Recovered Theme",
+        category: "朝活",
+        concept: "recoverable theme",
+        palette: ["#112233"],
+        shapeLanguage: "curves",
+        backgroundAssetPath: "backgrounds/background.png",
+        titleAssetPath: "texts/title.png",
+        createdAt: new Date().toISOString(),
+      },
+    ]));
+
+    const themes = await storage.listThemeKits();
+    expect(themes).toHaveLength(1);
+    expect(themes[0]).toMatchObject({ id: "recovered-theme", accents: [] });
+  });
 });

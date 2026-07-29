@@ -128,6 +128,8 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - PNGとprompt記録を確認してから`index.jsonl`へ既存スキーマの全フィールドを1行JSONで追記する。該当しない値はnull。assetとpromptは保存ルートからの相対パスにする。
 - accent成功後、同じtheme_idのbackground、title、accentの存在、sha256、画像内容を確認する。1280x720で3素材を機械的に合成し、`view_image`で色・形・質感の一体感、人物と文字の安全領域、小窓不在を確認する。
 - 合格時だけ`theme-kits.json`へ既存テーマを保持して次を原子的に追加する。
+- `theme-kits.json`のルート形式は必ず`{"version":1,"updatedAt":"ISO-8601","themes":[...]}`のJSONオブジェクトを維持する。ルートを配列にしてはならない。既存オブジェクトを読み、`manifest["themes"]`配列へテーマオブジェクトを追加または同じidで置換する。
+- 書き込み前に元ファイルを同じディレクトリの一時バックアップへコピーする。書き込み後に、ルートがobject、`version===1`、`themes`がarrayであることを再読込して検証する。検証失敗時は即座に元ファイルへ戻して失敗通知する。
 
 ```json
 {
