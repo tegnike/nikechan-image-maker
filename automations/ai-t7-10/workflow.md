@@ -16,6 +16,7 @@
 - 頭部アンカー正本: `head-anchors.json`
 - 透過処理: `/Users/your-name/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py`
 - 旧完成画像: `/Volumes/EXTERNAL_VOLUME/ニケ/imagegen`（読み取り専用）
+- 実例サムネイル参照: `references/vtuber-thumbnails/YYYY/MM/DD/`
 
 ## 実行前と生成回数
 
@@ -38,6 +39,28 @@
 
 これは一枚絵の機械的なピクセル分割ではない。最初の背景をデザインマスターとして、後続素材を実画像参照で派生させることで、分割後も色・形・質感を揃える。
 
+## 実在VTuberサムネイルの参照
+
+自由創作だけでテーマを決めない。各`*-background` runでは、画像生成前に実在するVTuberの公開YouTube配信サムネイルを必ず1枚選び、その実画像を`image_gen`の参照画像として使う。
+
+1. `yt-dlp`のYouTube検索を使い、`VTuber 朝活 雑談`、`VTuber 朝活 配信`、`VTuber 雑談 配信`などから候補を8件程度取得する。動画ID、動画URL、サムネイルURL、チャンネル名、動画タイトルを取得する。
+2. Shorts、切り抜き、MV、歌ってみた、実写主体、ゲーム画面主体、サムネイルが取得できない動画は除外する。VTuber本人の配信待機枠または配信アーカイブを優先する。
+3. 候補サムネイルを最大3枚だけ一時取得して`view_image`で比較する。背景が比較的シンプル、人物が大きい、主要文字が大きい、小物が少ない、16:9であるものを優先する。検索順位1位を無条件に選ばない。
+4. `index.jsonl`の直近12件のbackground行で使った`reference_video_id`と同じ動画は再利用しない。同一チャンネルは直近3テーマにあれば避ける。
+5. 選んだ1枚を`references/vtuber-thumbnails/YYYY/MM/DD/{video_id}.jpg`へ保存する。同名の`{video_id}.source.json`へ動画URL、サムネイルURL、チャンネル名、動画タイトル、取得日時を保存する。不採用候補は永続保存しない。
+6. 選んだ実画像を次の観点で分析する。
+   - 人物の位置と画面占有率
+   - 顔の位置
+   - 主文字の位置と画面占有率
+   - 背景の単純さと明暗分布
+   - 色の役割とコントラスト
+   - 外周・帯・部分フレームの使い方
+   - 小物の種類、個数、大きさ
+7. 分析から`reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`, `reference_prop_grammar`を作り、テーマ仕様へ保存する。これらのうち構図上重要な2〜3要素を新テーマへ明確に継承する。
+8. 元サムネイルのキャラクター、顔、衣装、可読文字、ロゴ、チャンネル固有マーク、透かし、固有パターンはコピーしない。全体を忠実に複製せず、レイアウト文法と情報密度をAIニケちゃん向けに変換する。
+9. 実例がシンプルなら、生成背景へ実例にないパネル、窓、細密装飾を追加しない。「新奇なテーマを発明すること」より「実在サムネイルらしい構成を保つこと」を優先する。
+10. 有効な実例を取得・保存できない場合、そのbackgroundは生成せず失敗終了する。想像上の参照元やURLを記録しない。
+
 ## テーマ仕様
 
 background行のprompt記録と索引へ次を必ず保存し、titleとaccentへ一字一句引き継ぐ。
@@ -51,8 +74,10 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - `accent_concept`: モチーフ、役割、想定位置
 - `composition_zone`: character, title, accentの安全領域
 - `visual_family`
+- `reference_video_id`, `reference_video_url`, `reference_thumbnail_url`, `reference_channel`, `reference_video_title`
+- `reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`, `reference_prop_grammar`
 
-完成テーマ直近6件を`view_image`で比較し、mood、palette、shape_language、texture_languageの最低3軸を変える。単なる色替えは禁止する。visual familyはelectric-broadcast、cozy-editorial、fresh-pop、retro-tv、soft-luxury、scrapbook-magazine、clean-tech、handmade-cafeなどから選べるが固定順にしない。
+完成テーマ直近6件を`view_image`で比較し、参照元の違いを活かしながらmood、palette、shape_language、texture_languageの最低2軸を変える。実例との構成類似性を壊してまで差別化しない。単なる色替えは禁止する。visual familyは参照サムネイルの観察結果から決め、抽象的なテーマ名を先に選んで実例を歪めない。
 
 ## 共通品質
 
@@ -67,12 +92,12 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 
 ## background
 
-- 参照画像なし。16:9横長。人物、文字、ロゴ、小物単体を入れない。
+- 選定した実在VTuberサムネイル1枚だけを構図・密度の参照画像として使う。16:9横長。人物、文字、ロゴ、小物単体を入れない。
 - 完成した部屋や風景ではなく、VTuber配信サムネイルのグラフィック・バックプレートとして作る。
 - 後載せする大きな人物、タイトル、アクセントのための余白を持たせるが、淡色無地や薄い幾何図形だけにしない。
 - 共通palette、shape language、texture languageを使い、視線誘導、人物側の抜け、タイトル側のコントラストに役割を持たせる。
 - 外周全部を囲う太いフレームは背景へ焼き込まない。テーマに必要な縁取りは部分的な角・帯・曲線に留める。
-- 最終プロンプトへ `graphic design backplate for a VTuber livestream thumbnail, not a presentation slide, website banner, monitor UI, or picture-in-picture layout` と `no character, no readable text, no empty window or placeholder panel` を含める。
+- 最終プロンプトへ、参照画像から継承する構図要素を具体的に列挙する。さらに`use the reference only for layout grammar, visual density, palette roles, and edge treatment; do not copy its character, text, logo, or channel identity`、`graphic design backplate for a VTuber livestream thumbnail, not a presentation slide, website banner, monitor UI, or picture-in-picture layout`、`no character, no readable text, no empty window or placeholder panel`を含める。
 
 ## title
 
@@ -124,7 +149,7 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 ## 保存・索引・テーマ公開
 
 - Europe/Warsaw日時のbasenameでカテゴリ別PNGと対応する`.prompt.md`を保存する。
-- prompt記録にはasset_type、generation_slot、theme_id、テーマ仕様、最終プロンプト全文、参照画像、透過処理、dimensions、alpha、sha256、head_anchor、accent metadataを残す。
+- prompt記録にはasset_type、generation_slot、theme_id、テーマ仕様、最終プロンプト全文、参照画像、参照動画の全メタデータと分析、透過処理、dimensions、alpha、sha256、head_anchor、accent metadataを残す。
 - PNGとprompt記録を確認してから`index.jsonl`へ既存スキーマの全フィールドを1行JSONで追記する。該当しない値はnull。assetとpromptは保存ルートからの相対パスにする。
 - accent成功後、同じtheme_idのbackground、title、accentの存在、sha256、画像内容を確認する。1280x720で3素材を機械的に合成し、`view_image`で色・形・質感の一体感、人物と文字の安全領域、小窓不在を確認する。
 - 合格時だけ`theme-kits.json`へ既存テーマを保持して次を原子的に追加する。
