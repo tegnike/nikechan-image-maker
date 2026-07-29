@@ -94,12 +94,56 @@ function portablePath(value: string) {
   return value.split(path.sep).join("/");
 }
 
+function canonicalHeadAnchorPath(value: string) {
+  return portablePath(value).replace(/^assets\//, "");
+}
+
+function normalizeHeadAnchor(value: unknown): HeadAnchor | null {
+  if (!value || typeof value !== "object") return null;
+  const anchor = value as Partial<HeadAnchor>;
+  if (
+    ![anchor.centerX, anchor.centerY, anchor.width, anchor.height, anchor.confidence].every(Number.isFinite)
+    || !["anime-face-cascade-reviewed", "manual-reviewed", "manual"].includes(anchor.method || "")
+  ) return null;
+  return {
+    centerX: anchor.centerX!,
+    centerY: anchor.centerY!,
+    width: anchor.width!,
+    height: anchor.height!,
+    ...(Number.isFinite(anchor.sourceWidth) ? { sourceWidth: anchor.sourceWidth } : {}),
+    ...(Number.isFinite(anchor.sourceHeight) ? { sourceHeight: anchor.sourceHeight } : {}),
+    method: anchor.method!,
+    confidence: anchor.confidence!,
+  };
+}
+
+function normalizeHeadAnchorIndex(input: unknown): HeadAnchorIndex {
+  if (!input || typeof input !== "object") {
+    return { version: 1, updatedAt: new Date(0).toISOString(), anchors: {} };
+  }
+  const parsed = input as Record<string, unknown>;
+  const anchors: Record<string, HeadAnchor> = {};
+  const merge = (entries: Record<string, unknown>) => {
+    for (const [assetPath, value] of Object.entries(entries)) {
+      const canonical = canonicalHeadAnchorPath(assetPath);
+      const anchor = normalizeHeadAnchor(value);
+      if (canonical.startsWith("characters/") && anchor) anchors[canonical] = anchor;
+    }
+  };
+  if (parsed.anchors && typeof parsed.anchors === "object" && !Array.isArray(parsed.anchors)) {
+    merge(parsed.anchors as Record<string, unknown>);
+  }
+  merge(parsed);
+  return {
+    version: 1,
+    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date(0).toISOString(),
+    anchors,
+  };
+}
+
 export async function loadHeadAnchors(): Promise<HeadAnchorIndex> {
   try {
-    const parsed = JSON.parse(await readFile(HEAD_ANCHORS_PATH, "utf8")) as HeadAnchorIndex;
-    return parsed.version === 1 && parsed.anchors && typeof parsed.anchors === "object"
-      ? parsed
-      : { version: 1, updatedAt: new Date(0).toISOString(), anchors: {} };
+    return normalizeHeadAnchorIndex(JSON.parse(await readFile(HEAD_ANCHORS_PATH, "utf8")) as unknown);
   } catch {
     return { version: 1, updatedAt: new Date(0).toISOString(), anchors: {} };
   }

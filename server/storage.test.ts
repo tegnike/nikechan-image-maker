@@ -74,6 +74,33 @@ describe("thumbnail library storage", () => {
     });
   });
 
+  it("recovers assets-prefixed and root-level head anchors", async () => {
+    const characterDir = path.join(storage.ASSETS_ROOT, "characters", "2026", "07", "29");
+    await mkdir(characterDir, { recursive: true });
+    await writeFile(path.join(characterDir, "nested.png"), "test");
+    await writeFile(path.join(characterDir, "root.png"), "test");
+    const anchor = {
+      centerX: 0.46,
+      centerY: 0.126,
+      width: 0.275,
+      height: 0.217,
+      sourceWidth: 941,
+      sourceHeight: 1672,
+      method: "manual-reviewed",
+      confidence: 0.88,
+    };
+    await writeFile(storage.HEAD_ANCHORS_PATH, JSON.stringify({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      anchors: { "assets/characters/2026/07/29/nested.png": anchor },
+      "assets/characters/2026/07/29/root.png": anchor,
+    }));
+
+    const assets = await storage.listAssets("characters");
+    expect(assets.find((asset) => asset.name === "nested")?.headAnchor).toMatchObject({ centerX: 0.46, centerY: 0.126 });
+    expect(assets.find((asset) => asset.name === "root")?.headAnchor).toMatchObject({ centerX: 0.46, centerY: 0.126 });
+  });
+
   it("loads a background, title, and movable accent as one theme kit", async () => {
     await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
       version: 1,

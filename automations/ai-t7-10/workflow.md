@@ -168,6 +168,9 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - alpha channel、透明な四隅、欠損なし、緑縁なしを確認する。細い緑縁だけなら`--edge-contract 1`を加えた透過処理だけを1回再実行してよい。欠損時は採用しない。
 - characterは透過PNGを`view_image`で確認し、頭蓋・前髪・側頭部の髪を含む主な頭部領域（首、手、長いポニーテールは除外）の中心と外接矩形を決める。
 - `centerX`, `centerY`, `width`, `height`を元PNG全体に対する0〜1で`head-anchors.json`へ原子的に保存する。`sourceWidth`, `sourceHeight`, `method="manual-reviewed"`, `confidence`も記録する。
+- `head-anchors.json`のルート形式は必ず`{"version":1,"updatedAt":"ISO-8601","anchors":{}}`とする。既存オブジェクトを読み、`manifest["anchors"]`へ追加する。素材パスをルート直下へ書いてはならない。
+- `anchors`のキーは保存ルートの`assets/`からの相対パス、すなわち`characters/YYYY/MM/DD/file.png`とする。先頭へ`assets/`を含めてはならない。索引の`asset="assets/characters/..."`を使う場合は、先頭の`assets/`を除去してからキーにする。
+- 書き込み前に元ファイルを同じディレクトリの一時バックアップへコピーする。書き込み後に、ルートがobject、`version===1`、`anchors`がobject、追加キーが`characters/`で始まり`assets/`では始まらないことを再読込して検証する。検証失敗時は即座に元ファイルへ戻して失敗通知する。
 
 ## 保存・索引・テーマ公開
 
