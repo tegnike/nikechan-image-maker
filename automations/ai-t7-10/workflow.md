@@ -31,11 +31,11 @@
 
 ## テーマは一つのデザイン案件
 
-背景・「朝活」文字・アクセントを独立した素材として考えない。同じグループの3runは同じ`theme_id`、テーマ仕様、実生成画像を引き継ぐ。
+背景・「朝活」文字・部分フレームを独立した素材として考えない。同じグループの3runは同じ`theme_id`、テーマ仕様、実生成画像を引き継ぐ。
 
 - `background`: Europe/Warsaw日時と英数字slugで新しい`theme_id`を作り、テーマの基準デザインとなる背景を生成する。
 - `title`: 同じグループの直前background行を索引から取得し、実背景PNGを参照画像にして、同じ世界観の「朝活」文字だけを生成する。
-- `accent`: 同じグループの実背景PNGと実title PNGを両方参照し、同じ世界観の透過アクセント1点を生成する。成功後に3素材の合成を検査し、テーマを公開する。
+- `accent`: 同じグループの実背景PNGと実title PNGを両方参照し、同じ世界観の透過部分フレーム1点を生成する。成功後に3素材の合成を検査し、テーマを公開する。
 
 これは一枚絵の機械的なピクセル分割ではない。最初の背景をデザインマスターとして、後続素材を実画像参照で派生させることで、分割後も色・形・質感を揃える。
 
@@ -55,8 +55,8 @@
    - 背景の単純さと明暗分布
    - 色の役割とコントラスト
    - 外周・帯・部分フレームの使い方
-   - 小物の種類、個数、大きさ
-7. 分析から`reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`, `reference_prop_grammar`を作り、テーマ仕様へ保存する。これらのうち構図上重要な2〜3要素を新テーマへ明確に継承する。
+   - 角装飾、上辺・下辺の帯やレールの使い方
+7. 分析から`reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`を作り、テーマ仕様へ保存する。これらのうち構図上重要な2〜3要素を新テーマへ明確に継承する。
 8. 元サムネイルのキャラクター、顔、衣装、可読文字、ロゴ、チャンネル固有マーク、透かし、固有パターンはコピーしない。全体を忠実に複製せず、レイアウト文法と情報密度をAIニケちゃん向けに変換する。
 9. 実例がシンプルなら、生成背景へ実例にないパネル、窓、細密装飾を追加しない。「新奇なテーマを発明すること」より「実在サムネイルらしい構成を保つこと」を優先する。
 10. 有効な実例を取得・保存できない場合、そのbackgroundは生成せず失敗終了する。想像上の参照元やURLを記録しない。
@@ -71,11 +71,11 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - `shape_language`
 - `texture_language`: 最大2種
 - `title_treatment`
-- `accent_concept`: モチーフ、役割、想定位置
+- `accent_concept`: 部分フレームのモチーフ、`corner`または`top-bottom`、想定位置
 - `composition_zone`: character, title, accentの安全領域
 - `visual_family`
 - `reference_video_id`, `reference_video_url`, `reference_thumbnail_url`, `reference_channel`, `reference_video_title`
-- `reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`, `reference_prop_grammar`
+- `reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`
 
 完成テーマ直近6件を`view_image`で比較し、参照元の違いを活かしながらmood、palette、shape_language、texture_languageの最低2軸を変える。実例との構成類似性を壊してまで差別化しない。単なる色替えは禁止する。visual familyは参照サムネイルの観察結果から決め、抽象的なテーマ名を先に選んで実例を歪めない。
 
@@ -85,7 +85,7 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - AIニケちゃんの紫髪、青緑Tシャツ、ピンクの上着と調和または意図的に対比する配色にする。
 - パステルだけで薄くせず、必ず強いcontrast anchorを置く。
 - プレゼン資料、企業Webバナー、汎用壁紙、素材シート、生成AIの細密イラストにしない。
-- 背景はシンプル、人物と文字は大きく、小物は1点を原則とする。160px幅でも人物、文字、テーマの順に読める設計にする。
+- 背景はシンプル、人物と文字は大きく、前景は部分フレーム1点だけにする。独立した小物は生成しない。160px幅でも人物、文字、テーマの順に読める設計にする。
 - 太陽、日の出、光線、黄色を朝らしさの既定表現にしない。sun familyが完成テーマ直近8件にあれば禁止する。
 - 空の小窓、モニター、ディスプレイ、UIパネル、配信画面枠、picture-in-picture、空のカード、文字待ちの四角、プレースホルダー領域を作らない。
 - 要素を囲うためだけの大きな角丸矩形を作らない。人物や文字を「小窓の中」に収める構図は禁止する。
@@ -94,7 +94,7 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 
 - 選定した実在VTuberサムネイル1枚だけを構図・密度の参照画像として使う。16:9横長。人物、文字、ロゴ、小物単体を入れない。
 - 完成した部屋や風景ではなく、VTuber配信サムネイルのグラフィック・バックプレートとして作る。
-- 後載せする大きな人物、タイトル、アクセントのための余白を持たせるが、淡色無地や薄い幾何図形だけにしない。
+- 後載せする大きな人物、タイトル、部分フレームのための余白を持たせるが、淡色無地や薄い幾何図形だけにしない。
 - 共通palette、shape language、texture languageを使い、視線誘導、人物側の抜け、タイトル側のコントラストに役割を持たせる。
 - 外周全部を囲う太いフレームは背景へ焼き込まない。テーマに必要な縁取りは部分的な角・帯・曲線に留める。
 - 最終プロンプトへ、参照画像から継承する構図要素を具体的に列挙する。さらに`use the reference only for layout grammar, visual density, palette roles, and edge treatment; do not copy its character, text, logo, or channel identity`、`graphic design backplate for a VTuber livestream thumbnail, not a presentation slide, website banner, monitor UI, or picture-in-picture layout`、`no character, no readable text, no empty window or placeholder panel`を含める。
@@ -111,14 +111,18 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 ## accent
 
 - 同じ`theme_id`の実背景PNGと透過title PNGを参照画像に使う。
-- 原則は、自由に移動・拡大縮小・削除できる`role="prop"`の中サイズ小物1点とする。
-- モチーフはテーマに由来させる。例: マグ、目覚まし時計、ヘッドホン、マイク、ノート、ペン、チャット記号、リボンタグ。ただし履歴とテーマに応じて選び、毎回同じ太陽や時計にしない。
-- 細かい小物を大量に散らさず、1〜2モチーフを一つのまとまりとして描く。人物の顔や「朝活」の可読域を塞がない。
-- 背景の縁や曲線と呼応する場合のみ`role="foreground-accent"`を選べる。画面全体を閉じ込める額縁ではなく、最大でも2辺の部分的な前景アクセントとし、大きな透明開口部を持たせる。
-- 空の小窓、モニター、UIパネル、配信画面枠、文字台座だけの四角、完成サムネイル全体は生成しない。
+- 生成物は毎回必ず`role="foreground-accent"`の部分フレーム1点とする。`role="prop"`や独立した小物は生成しない。
+- 1280x720の完成キャンバス全体にそのまま重ねられる16:9オーバーレイとして生成する。`default_placement`は常に`{"x":0,"y":0,"width":1280}`とする。
+- フレーム形式はテーマごとに次のどちらか一つを選ぶ。
+  - `corner`: 1〜3か所の角に置くコーナー装飾。角同士を線で完全接続しない。各装飾は画面幅・高さの18%以内を目安とし、中央へ張り出さない。
+  - `top-bottom`: 上辺と下辺に沿う細い帯、レール、リボン、罫線。各辺の高さは画面高の12%以内とし、左右辺を接続しない。
+- 背景のpalette、shape language、texture languageと一致させる。参照サムネイルに使える部分フレームがあれば、その位置と密度を抽象化して取り入れる。参照にフレームがなければ、背景の形状から控えめな角または上下フレームを派生させる。
+- 四辺を完全に囲む四角形、連続した全周枠、中央の大きな開口部を持つ額縁、内側サイズへの厳密なフィットを要求するフレームは禁止する。
+- 空の小窓、モニター、UIパネル、配信画面枠、文字台座、独立したバッジ、小物、完成サムネイル全体は生成しない。
+- 人物の顔と「朝活」の可読域を塞がない。実不透明ピクセルの総面積はキャンバスの25%以下にする。
 - 完全に均一な`#00ff00`背景、影・床・反射なし、周囲に余白、素材内に`#00ff00`を使わないと明記する。
-- 透過後の見える領域がキャンバスの65%を超える場合、`foreground-accent`以外では採用しない。
-- prompt記録と索引へ`accent_role`、`accent_motif`、`default_placement={x,y,width}`を保存する。配置は1280x720キャンバス座標。propの推奨widthは180〜380、foreground-accentは650〜1280。
+- 透過後に16:9全体へ重ねて`view_image`で確認する。四角い全周枠に見える、上下・角以外へ大きく張り出す、人物や文字の安全域を侵す場合は採用しない。
+- prompt記録と索引へ`accent_role="foreground-accent"`、`frame_layout="corner"|"top-bottom"`、`accent_motif`、`default_placement={"x":0,"y":0,"width":1280}`を保存する。
 
 ## character-1
 
@@ -169,8 +173,8 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
   "accentAssets": [
     {
       "assetPath": "decorations/...png",
-      "role": "prop",
-      "placement": { "x": 850, "y": 430, "width": 260 }
+      "role": "foreground-accent",
+      "placement": { "x": 0, "y": 0, "width": 1280 }
     }
   ],
   "createdAt": "ISO-8601"

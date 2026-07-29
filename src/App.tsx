@@ -648,12 +648,13 @@ function App() {
           const scale = accent.placement.width / layer.width;
           return {
             ...layer,
-            name: `${accent.role === "prop" ? "テーマ小物" : "前景アクセント"} · ${layer.name}`,
+            name: `${accent.role === "prop" ? "テーマ小物" : "部分フレーム"} · ${layer.name}`,
             themeRole: accent.role,
             x: accent.placement.x,
             y: accent.placement.y,
             scaleX: scale,
             scaleY: scale,
+            locked: accent.role === "foreground-accent",
           };
         })),
       ]);
@@ -869,7 +870,7 @@ function App() {
             <button className={assetType === "characters" ? "active" : ""} onClick={() => setAssetType("characters")}>キャラクター</button>
           </div>
           <div className="asset-tip">
-            {assetType === "themes" && "同じ世界観の背景・「朝活」文字・任意のテーマ小物をセットで追加します。"}
+            {assetType === "themes" && "同じ世界観の背景・「朝活」文字・角または上下の部分フレームをセットで追加します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
           </div>
           {assetType === "themes" ? (
@@ -895,7 +896,9 @@ function App() {
                   </div>
                   <div className="theme-info">
                     <strong>{theme.name}</strong>
-                    <span>{theme.category} · 背景＋文字{(theme.accents || []).length ? `＋アクセント${theme.accents.length}` : ""}</span>
+                    <span>{theme.category} · 背景＋文字{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
+                      ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
+                      : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
                     <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
                   </div>
                 </button>
