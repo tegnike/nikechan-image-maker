@@ -12,6 +12,7 @@ import {
   libraryHealth,
   listAssets,
   listProjects,
+  listThemeKits,
   loadProject,
   saveExport,
   saveProject,
@@ -46,6 +47,10 @@ app.get("/api/assets", async (request, response) => {
     return;
   }
   response.json({ assets: await listAssets(type) });
+});
+
+app.get("/api/themes", async (_request, response) => {
+  response.json({ themes: await listThemeKits() });
 });
 
 app.post("/api/assets/:type", upload.array("files", 20), async (request, response) => {

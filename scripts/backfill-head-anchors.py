@@ -44,6 +44,7 @@ ANCHORS = {
     "2026/07/29/20260729-084649-nikechan-lookout-step.png": (0.455, 0.165, 0.390, 0.250, "manual-reviewed"),
     "2026/07/29/20260729-094012-nikechan-wink-shrug.png": (0.500, 0.205, 0.420, 0.290, "manual-reviewed"),
     "2026/07/29/20260729-103018-nikechan-listen-ear.png": (0.465, 0.205, 0.390, 0.260, "anime-face-cascade-reviewed"),
+    "2026/07/29/20260729-112154-nikechan-wave-jacket.png": (0.506, 0.245, 0.420, 0.400, "anime-face-cascade-reviewed"),
 }
 
 

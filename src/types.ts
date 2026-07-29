@@ -20,9 +20,23 @@ export type Asset = {
   type: AssetType;
   url: string;
   assetPath?: string;
+  themeId?: string;
   source: "library" | "reference";
   createdAt: string;
   headAnchor?: HeadAnchor;
+};
+
+export type ThemeKit = {
+  id: string;
+  name: string;
+  category: string;
+  concept: string;
+  palette: string[];
+  shapeLanguage: string;
+  background: Asset;
+  title: Asset;
+  decorations: Asset[];
+  createdAt: string;
 };
 
 type LayerBase = {
@@ -44,6 +58,7 @@ export type ImageLayer = LayerBase & {
   kind: "image";
   src: string;
   assetPath?: string;
+  themeId?: string;
   assetType: AssetType;
   headAnchor?: HeadAnchor;
   cropX?: number;

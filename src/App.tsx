@@ -23,7 +23,7 @@ import {
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThumbnailProject } from "./types";
+import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThemeKit, ThumbnailProject } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
   analyzeThumbnail,
@@ -31,6 +31,7 @@ import {
   applyThumbnailTemplate,
   cloneLayer,
   createEmptyProject,
+  createId,
   createTitleLayer,
   imageAppearanceDefaults,
   moveItem,
@@ -47,6 +48,7 @@ const assetLabels: Record<AssetType, string> = {
   texts: "文字",
   decorations: "小物・枠",
 };
+type LibraryTab = AssetType | "themes";
 
 const fonts = ["Hiragino Sans", "Hiragino Maru Gothic ProN", "Yu Gothic", "Arial Black", "sans-serif"];
 
@@ -374,8 +376,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function App() {
   const [project, setProject] = useState<ThumbnailProject>(() => createEmptyProject());
   const [selectedId, setSelectedId] = useState<string | null>(project.layers.at(-1)?.id || null);
-  const [assetType, setAssetType] = useState<AssetType>("characters");
+  const [assetType, setAssetType] = useState<LibraryTab>("themes");
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [themes, setThemes] = useState<ThemeKit[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
   const [status, setStatus] = useState("準備中…");
@@ -405,21 +408,31 @@ function App() {
     setProjects(payload.projects || []);
   }, []);
 
+  const refreshThemes = useCallback(async () => {
+    const response = await fetch("/api/themes");
+    const payload = await response.json();
+    setThemes(payload.themes || []);
+  }, []);
+
   useEffect(() => {
-    Promise.all([fetch("/api/health").then((response) => response.json()), refreshAssets(assetType), refreshProjects()])
+    Promise.all([
+      fetch("/api/health").then((response) => response.json()),
+      assetType === "themes" ? refreshThemes() : refreshAssets(assetType),
+      refreshProjects(),
+    ])
       .then(([nextHealth]) => {
         setHealth(nextHealth);
         setStatus(nextHealth.writable ? "T7素材ライブラリに接続しました" : "素材ライブラリを確認してください");
       })
       .catch(() => setStatus("アプリの接続を確認してください"));
-  }, [assetType, refreshAssets, refreshProjects]);
+  }, [assetType, refreshAssets, refreshProjects, refreshThemes]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      void refreshAssets(assetType);
+      void (assetType === "themes" ? refreshThemes() : refreshAssets(assetType));
     }, 10_000);
     return () => window.clearInterval(timer);
-  }, [assetType, refreshAssets]);
+  }, [assetType, refreshAssets, refreshThemes]);
 
   useEffect(() => {
     const resize = () => {
@@ -553,7 +566,7 @@ function App() {
     return () => window.removeEventListener("keydown", keyboard);
   }, [deleteSelected, redo, selected, selectedId, undo, updateLayer]);
 
-  const addAsset = (asset: Asset) => {
+  const buildAssetLayer = (asset: Asset) => new Promise<StudioLayer>((resolve, reject) => {
     const image = new window.Image();
     image.onload = () => {
       const isBackground = asset.type === "backgrounds";
@@ -581,13 +594,14 @@ function App() {
           : asset.type === "characters"
             ? CANVAS_HEIGHT - visualHeight + 35
             : (CANVAS_HEIGHT - visualHeight) / 2;
-      const layer: StudioLayer = {
+      resolve({
         ...imageAppearanceDefaults(asset.type),
-        id: `image-${Date.now().toString(36)}`,
+        id: createId("image"),
         kind: "image",
         name: asset.name,
         src: asset.url,
         assetPath: asset.assetPath,
+        themeId: asset.themeId,
         assetType: asset.type,
         headAnchor: asset.headAnchor
           ? remapHeadAnchorToCrop(asset.headAnchor, image.naturalWidth, image.naturalHeight, bounds)
@@ -606,15 +620,50 @@ function App() {
         locked: false,
         scaleX: fit,
         scaleY: fit,
-      };
+      });
+    };
+    image.onerror = () => reject(new Error(`素材を読み込めません: ${asset.name}`));
+    image.src = asset.url;
+  });
+
+  const addAsset = async (asset: Asset) => {
+    try {
+      const layer = await buildAssetLayer(asset);
       commitProject((current) => ({
         ...current,
-        layers: isBackground ? replaceBackgroundLayer(current.layers, layer) : [...current.layers, layer],
+        layers: asset.type === "backgrounds" ? replaceBackgroundLayer(current.layers, layer) : [...current.layers, layer],
       }));
       setSelectedId(layer.id);
       setStatus(`${asset.name} を追加しました`);
-    };
-    image.src = asset.url;
+    } catch {
+      setStatus(`${asset.name} を読み込めませんでした`);
+    }
+  };
+
+  const addTheme = async (theme: ThemeKit) => {
+    setStatus(`${theme.name} を組み立てています…`);
+    try {
+      const [background, title, ...decorations] = await Promise.all([
+        buildAssetLayer(theme.background),
+        buildAssetLayer(theme.title),
+        ...theme.decorations.map(buildAssetLayer),
+      ]);
+      commitProject((current) => {
+        const withoutOldBackground = current.layers.filter(
+          (layer) => !(layer.kind === "image" && layer.assetType === "backgrounds"),
+        );
+        const hiddenOldTitles = withoutOldBackground.map((layer) => {
+          const isTitle = layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts");
+          return isTitle ? { ...layer, visible: false } : layer;
+        });
+        const assembled = [background, ...hiddenOldTitles, title, ...decorations];
+        return { ...current, layers: applyThumbnailTemplate(assembled, "character-right") };
+      });
+      setSelectedId(title.id);
+      setStatus(`${theme.name} を背景・文字セットで追加しました`);
+    } catch {
+      setStatus(`${theme.name} を読み込めませんでした`);
+    }
   };
 
   const addText = () => {
@@ -675,6 +724,10 @@ function App() {
 
   const uploadAssets = async (files: FileList | null) => {
     if (!files?.length) return;
+    if (assetType === "themes") {
+      setStatus("テーマは背景・文字のセットとして登録します");
+      return;
+    }
     const form = new FormData();
     Array.from(files).forEach((file) => form.append("files", file));
     setStatus("素材を追加しています…");
@@ -798,12 +851,15 @@ function App() {
         <aside className="asset-panel panel">
           <div className="panel-heading">
             <div><span className="eyebrow">ASSET LIBRARY</span><h2>素材</h2></div>
-            <label className="icon-button upload-button" title="素材を追加">
-              <Upload size={17} />
-              <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => uploadAssets(event.target.files)} />
-            </label>
+            {assetType !== "themes" ? (
+              <label className="icon-button upload-button" title="素材を追加">
+                <Upload size={17} />
+                <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => uploadAssets(event.target.files)} />
+              </label>
+            ) : null}
           </div>
           <div className="asset-tabs" role="tablist">
+            <button className={assetType === "themes" ? "active" : ""} onClick={() => setAssetType("themes")}>テーマ</button>
             {(Object.keys(assetLabels) as AssetType[]).map((type) => (
               <button key={type} className={assetType === type ? "active" : ""} onClick={() => setAssetType(type)}>
                 {assetLabels[type]}
@@ -811,25 +867,45 @@ function App() {
             ))}
           </div>
           <div className="asset-tip">
+            {assetType === "themes" && "同じ世界観で生成した背景・文字・前景をセットで追加します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
             {assetType === "backgrounds" && "人物・文字なしのシンプルな16:9背景を使います。"}
             {assetType === "texts" && "画像生成した装飾付き文字を、透過PNGで重ねます。"}
             {assetType === "decorations" && "フレームや小物は少量を前景へ重ねます。"}
           </div>
-          <div className="asset-grid">
-            {assets.map((asset) => (
-              <button key={asset.id} className="asset-card" onClick={() => addAsset(asset)} title={`${asset.name}を追加`}>
-                <div className={assetType !== "backgrounds" ? "asset-thumb checker" : "asset-thumb"}>
-                  <img src={asset.url} alt="" />
-                </div>
-                <span>{asset.name}</span>
-                {asset.source === "reference" ? <em>公式資料</em> : null}
-              </button>
-            ))}
-            {!assets.length ? (
-              <div className="empty-assets"><ImagePlus size={28} /><p>まだ素材がありません</p><span>上の追加ボタンから登録できます</span></div>
-            ) : null}
-          </div>
+          {assetType === "themes" ? (
+            <div className="theme-grid">
+              {themes.map((theme) => (
+                <button key={theme.id} className="theme-card" onClick={() => addTheme(theme)} title={`${theme.name}をセットで追加`}>
+                  <div className="theme-preview">
+                    <img className="theme-background" src={theme.background.url} alt="" />
+                    <img className="theme-title" src={theme.title.url} alt="" />
+                  </div>
+                  <div className="theme-info">
+                    <strong>{theme.name}</strong>
+                    <span>{theme.category} · セットで追加</span>
+                    <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
+                  </div>
+                </button>
+              ))}
+              {!themes.length ? <div className="empty-assets"><Sparkles size={28} /><p>テーマを準備中です</p></div> : null}
+            </div>
+          ) : (
+            <div className="asset-grid">
+              {assets.map((asset) => (
+                <button key={asset.id} className="asset-card" onClick={() => addAsset(asset)} title={`${asset.name}を追加`}>
+                  <div className={assetType !== "backgrounds" ? "asset-thumb checker" : "asset-thumb"}>
+                    <img src={asset.url} alt="" />
+                  </div>
+                  <span>{asset.name}</span>
+                  {asset.source === "reference" ? <em>公式資料</em> : null}
+                </button>
+              ))}
+              {!assets.length ? (
+                <div className="empty-assets"><ImagePlus size={28} /><p>まだ素材がありません</p><span>上の追加ボタンから登録できます</span></div>
+              ) : null}
+            </div>
+          )}
         </aside>
 
         <section className="workspace" ref={workspaceRef}>

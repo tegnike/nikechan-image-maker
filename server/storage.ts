@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, ThumbnailProject } from "../src/types";
+import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, ThemeKit, ThumbnailProject } from "../src/types";
 import { remapHeadAnchorToCrop } from "../src/lib";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
@@ -13,6 +13,7 @@ export const PROJECTS_ROOT = path.join(LIBRARY_ROOT, "projects");
 export const EXPORTS_ROOT = path.join(LIBRARY_ROOT, "exports");
 export const PROMPTS_ROOT = path.join(LIBRARY_ROOT, "prompts");
 export const HEAD_ANCHORS_PATH = path.join(LIBRARY_ROOT, "head-anchors.json");
+export const THEME_KITS_PATH = path.join(LIBRARY_ROOT, "theme-kits.json");
 export const REFERENCES_ROOT = path.join(PROJECT_ROOT, "references");
 
 export const ASSET_TYPES: AssetType[] = ["characters", "backgrounds", "texts", "decorations"];
@@ -168,6 +169,52 @@ export async function listAssets(type: AssetType): Promise<Asset[]> {
     );
   }
   return assets;
+}
+
+type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "decorations"> & {
+  backgroundAssetPath: string;
+  titleAssetPath: string;
+  decorationAssetPaths: string[];
+};
+
+function themeAsset(assetPath: string, type: AssetType, themeId: string, createdAt: string): Asset {
+  const normalized = assetPath.replaceAll("\\", "/").replace(/^assets\//, "");
+  const prefix = `${type}/`;
+  if (!normalized.startsWith(prefix) || normalized.includes("..")) {
+    throw new Error(`Invalid ${type} theme asset path: ${assetPath}`);
+  }
+  const relative = normalized.slice(prefix.length);
+  return {
+    id: `theme:${themeId}:${normalized}`,
+    name: path.parse(relative).name,
+    type,
+    url: assetUrl(`/library-assets/${type}`, relative),
+    assetPath: normalized,
+    themeId,
+    source: "library",
+    createdAt,
+  };
+}
+
+export async function listThemeKits(): Promise<ThemeKit[]> {
+  try {
+    const parsed = JSON.parse(await readFile(THEME_KITS_PATH, "utf8")) as { version: number; themes: ThemeKitRecord[] };
+    if (parsed.version !== 1 || !Array.isArray(parsed.themes)) return [];
+    return parsed.themes.map((theme) => ({
+      id: theme.id,
+      name: theme.name,
+      category: theme.category,
+      concept: theme.concept,
+      palette: theme.palette,
+      shapeLanguage: theme.shapeLanguage,
+      createdAt: theme.createdAt,
+      background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
+      title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),
+      decorations: theme.decorationAssetPaths.map((assetPath) => themeAsset(assetPath, "decorations", theme.id, theme.createdAt)),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function storeAsset(type: AssetType, originalName: string, bytes: Buffer) {

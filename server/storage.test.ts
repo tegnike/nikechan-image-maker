@@ -73,4 +73,31 @@ describe("thumbnail library storage", () => {
       headAnchor: { centerX: 0.5, centerY: 0.2 },
     });
   });
+
+  it("loads a background and title as one theme kit", async () => {
+    await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      themes: [{
+        id: "theme-test",
+        name: "Theme Test",
+        category: "朝活",
+        concept: "coherent test theme",
+        palette: ["#112233", "#ddeeff"],
+        shapeLanguage: "large curves",
+        backgroundAssetPath: "backgrounds/2026/07/29/background.png",
+        titleAssetPath: "texts/2026/07/29/title.png",
+        decorationAssetPaths: [],
+        createdAt: new Date().toISOString(),
+      }],
+    }));
+
+    const themes = await storage.listThemeKits();
+    expect(themes).toHaveLength(1);
+    expect(themes[0]).toMatchObject({
+      id: "theme-test",
+      background: { type: "backgrounds", themeId: "theme-test" },
+      title: { type: "texts", themeId: "theme-test" },
+    });
+  });
 });
