@@ -58,6 +58,7 @@ def main() -> None:
     parser.add_argument("--library-root", type=Path, default=Path("/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker"))
     parser.add_argument("--backup", type=Path, action="append", default=[])
     parser.add_argument("--exclude-theme", action="append", default=[])
+    parser.add_argument("--drop-accent-role", action="append", default=[])
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
 
@@ -74,6 +75,15 @@ def main() -> None:
         themes_by_id[theme["id"]] = normalize_theme(theme)
     for theme_id in args.exclude_theme:
         themes_by_id.pop(theme_id, None)
+    for theme in themes_by_id.values():
+        accents = [
+            accent for accent in theme.get("accentAssets", [])
+            if accent.get("role") not in args.drop_accent_role
+        ]
+        if accents:
+            theme["accentAssets"] = accents
+        else:
+            theme.pop("accentAssets", None)
 
     payload = {
         "version": 1,
@@ -88,15 +98,15 @@ def main() -> None:
         return
 
     stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
-    recovery_dir = root / ".trash" / f"malformed-theme-manifest-{stamp}"
+    recovery_dir = root / ".trash" / f"theme-manifest-backup-{stamp}"
     recovery_dir.mkdir(parents=True, exist_ok=False)
-    shutil.copy2(manifest_path, recovery_dir / "theme-kits.malformed.json")
+    shutil.copy2(manifest_path, recovery_dir / "theme-kits.before.json")
     atomic_json(manifest_path, payload)
     verified = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(verified, dict) or verified.get("version") != 1 or not isinstance(verified.get("themes"), list):
-        shutil.copy2(recovery_dir / "theme-kits.malformed.json", manifest_path)
-        raise SystemExit("verification failed; restored malformed source for inspection")
-    print(f"malformed source preserved: {recovery_dir}")
+        shutil.copy2(recovery_dir / "theme-kits.before.json", manifest_path)
+        raise SystemExit("verification failed; restored source for inspection")
+    print(f"previous manifest preserved: {recovery_dir}")
 
 
 if __name__ == "__main__":
