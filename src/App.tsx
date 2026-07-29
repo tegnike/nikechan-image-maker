@@ -25,7 +25,20 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
 import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThumbnailProject } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
-import { cloneLayer, createEmptyProject, createTitleLayer, moveItem, replaceBackgroundLayer, sanitizeProject, scaleLayerFromCenter } from "./lib";
+import {
+  analyzeThumbnail,
+  applyFinishPreset,
+  applyThumbnailTemplate,
+  cloneLayer,
+  createEmptyProject,
+  createTitleLayer,
+  imageAppearanceDefaults,
+  moveItem,
+  replaceBackgroundLayer,
+  sanitizeProject,
+  scaleLayerFromCenter,
+} from "./lib";
+import type { FinishPreset, ThumbnailTemplate } from "./lib";
 
 const assetLabels: Record<AssetType, string> = {
   characters: "キャラクター",
@@ -53,6 +66,43 @@ function useLoadedImage(src: string) {
   return image;
 }
 
+function visibleImageBounds(image: HTMLImageElement) {
+  const limit = 768;
+  const sampleScale = Math.min(1, limit / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * sampleScale));
+  const height = Math.max(1, Math.round(image.naturalHeight * sampleScale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight };
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height).data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[(y * width + x) * 4 + 3] <= 12) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight };
+  }
+  const inverse = 1 / sampleScale;
+  const margin = Math.ceil(4 * inverse);
+  const x = Math.max(0, Math.floor(minX * inverse) - margin);
+  const y = Math.max(0, Math.floor(minY * inverse) - margin);
+  const right = Math.min(image.naturalWidth, Math.ceil((maxX + 1) * inverse) + margin);
+  const bottom = Math.min(image.naturalHeight, Math.ceil((maxY + 1) * inverse) + margin);
+  return { x, y, width: right - x, height: bottom - y };
+}
+
 function ImageNode({
   layer,
   selected,
@@ -67,6 +117,24 @@ function ImageNode({
   const image = useLoadedImage(layer.src);
   const nodeRef = useRef<Konva.Image>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const blurRadius = layer.blurRadius || 0;
+  const brightness = layer.brightness || 0;
+  const saturation = layer.saturation || 0;
+  const filters = useMemo(() => {
+    const next: Array<(imageData: ImageData) => void> = [];
+    if (blurRadius > 0) next.push(Konva.Filters.Blur);
+    if (brightness !== 0) next.push(Konva.Filters.Brighten);
+    if (saturation !== 0) next.push(Konva.Filters.HSL);
+    return next;
+  }, [blurRadius, brightness, saturation]);
+
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (!node || !image) return;
+    node.clearCache();
+    if (filters.length) node.cache({ pixelRatio: 1 });
+    node.getLayer()?.batchDraw();
+  }, [brightness, filters, image, saturation]);
 
   useLayoutEffect(() => {
     if (selected && nodeRef.current && transformerRef.current) {
@@ -77,8 +145,32 @@ function ImageNode({
   });
 
   if (!image || !layer.visible) return null;
+  const crop = layer.cropWidth && layer.cropHeight
+    ? { x: layer.cropX || 0, y: layer.cropY || 0, width: layer.cropWidth, height: layer.cropHeight }
+    : undefined;
+  const outlineWidth = layer.assetType === "backgrounds" ? 0 : layer.outlineWidth || 0;
   return (
     <>
+      {outlineWidth > 0 ? (
+        <KonvaImage
+          image={image}
+          x={layer.x}
+          y={layer.y}
+          width={layer.width}
+          height={layer.height}
+          crop={crop}
+          scaleX={layer.scaleX}
+          scaleY={layer.scaleY}
+          rotation={layer.rotation}
+          opacity={layer.opacity}
+          listening={false}
+          shadowColor={layer.outlineColor || "#ffffff"}
+          shadowBlur={outlineWidth}
+          shadowOpacity={1}
+          shadowOffsetX={0}
+          shadowOffsetY={0}
+        />
+      ) : null}
       <KonvaImage
         ref={nodeRef}
         id={layer.id}
@@ -87,10 +179,20 @@ function ImageNode({
         y={layer.y}
         width={layer.width}
         height={layer.height}
+        crop={crop}
         scaleX={layer.scaleX}
         scaleY={layer.scaleY}
         rotation={layer.rotation}
         opacity={layer.opacity}
+        filters={filters}
+        blurRadius={blurRadius}
+        brightness={brightness}
+        saturation={saturation}
+        shadowColor={layer.imageShadowColor || "#281f43"}
+        shadowBlur={layer.imageShadowBlur || 0}
+        shadowOpacity={layer.imageShadowOpacity || 0}
+        shadowOffsetX={layer.imageShadowOffsetX || 0}
+        shadowOffsetY={layer.imageShadowOffsetY || 0}
         draggable={!layer.locked}
         onClick={onSelect}
         onTap={onSelect}
@@ -107,6 +209,15 @@ function ImageNode({
           });
         }}
       />
+      {layer.assetType === "backgrounds" && (layer.tintOpacity || 0) > 0 ? (
+        <Rect
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
+          fill={layer.tintColor || "#302454"}
+          opacity={(layer.tintOpacity || 0) * layer.opacity}
+          listening={false}
+        />
+      ) : null}
       {selected && !layer.locked ? (
         <Transformer
           ref={transformerRef}
@@ -249,6 +360,7 @@ function App() {
     () => project.layers.find((layer) => layer.id === selectedId) || null,
     [project.layers, selectedId],
   );
+  const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
 
   const refreshAssets = useCallback(async (type: AssetType) => {
     const response = await fetch(`/api/assets?type=${type}`);
@@ -414,19 +526,45 @@ function App() {
     const image = new window.Image();
     image.onload = () => {
       const isBackground = asset.type === "backgrounds";
+      const bounds = isBackground
+        ? { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+        : visibleImageBounds(image);
+      const targetWidth = asset.type === "texts" ? 760 : asset.type === "decorations" ? 500 : 650;
+      const targetHeight = asset.type === "texts" ? 430 : asset.type === "decorations" ? 460 : 820;
       const fit = isBackground
         ? Math.max(CANVAS_WIDTH / image.naturalWidth, CANVAS_HEIGHT / image.naturalHeight)
-        : Math.min(640 / image.naturalWidth, 650 / image.naturalHeight, 1.5);
+        : Math.min(targetWidth / bounds.width, targetHeight / bounds.height, 1.8);
+      const visualWidth = bounds.width * fit;
+      const visualHeight = bounds.height * fit;
+      const x = isBackground
+        ? (CANVAS_WIDTH - image.naturalWidth * fit) / 2
+        : asset.type === "texts"
+          ? 42
+          : asset.type === "characters"
+            ? CANVAS_WIDTH - visualWidth + 40
+            : (CANVAS_WIDTH - visualWidth) / 2;
+      const y = isBackground
+        ? (CANVAS_HEIGHT - image.naturalHeight * fit) / 2
+        : asset.type === "texts"
+          ? 58
+          : asset.type === "characters"
+            ? CANVAS_HEIGHT - visualHeight + 35
+            : (CANVAS_HEIGHT - visualHeight) / 2;
       const layer: StudioLayer = {
+        ...imageAppearanceDefaults(asset.type),
         id: `image-${Date.now().toString(36)}`,
         kind: "image",
         name: asset.name,
         src: asset.url,
         assetType: asset.type,
-        x: isBackground ? (CANVAS_WIDTH - image.naturalWidth * fit) / 2 : 620,
-        y: isBackground ? (CANVAS_HEIGHT - image.naturalHeight * fit) / 2 : CANVAS_HEIGHT - image.naturalHeight * fit,
-        width: image.naturalWidth,
-        height: image.naturalHeight,
+        x,
+        y,
+        width: bounds.width,
+        height: bounds.height,
+        cropX: isBackground ? undefined : bounds.x,
+        cropY: isBackground ? undefined : bounds.y,
+        cropWidth: isBackground ? undefined : bounds.width,
+        cropHeight: isBackground ? undefined : bounds.height,
         rotation: 0,
         opacity: 1,
         visible: true,
@@ -453,29 +591,48 @@ function App() {
     setSelectedId(layer.id);
   };
 
-  const applyPreset = (preset: "character-right" | "character-left" | "center-impact") => {
-    commitProject((current) => {
-      const character = [...current.layers].reverse().find((layer) => layer.kind === "image" && layer.assetType === "characters");
-      const title = current.layers.find((layer) => layer.kind === "text");
-      return {
-        ...current,
-        layers: current.layers.map((layer) => {
-          if (layer.id === character?.id) {
-            const visualWidth = layer.width * layer.scaleX;
-            if (preset === "character-right") return { ...layer, x: CANVAS_WIDTH - visualWidth + 80, y: 45 };
-            if (preset === "character-left") return { ...layer, x: -80, y: 45 };
-            return { ...layer, x: (CANVAS_WIDTH - visualWidth) / 2, y: 70, scaleX: layer.scaleX * 1.08, scaleY: layer.scaleY * 1.08 };
-          }
-          if (layer.id === title?.id && layer.kind === "text") {
-            if (preset === "character-right") return { ...layer, x: 35, y: 100, width: 670, rotation: -4 };
-            if (preset === "character-left") return { ...layer, x: 585, y: 110, width: 660, rotation: 4 };
-            return { ...layer, x: 230, y: 440, width: 820, rotation: 0 };
-          }
-          return layer;
-        }),
-      };
-    });
-    setStatus("構図プリセットを適用しました");
+  const applyPreset = (preset: ThumbnailTemplate) => {
+    commitProject((current) => ({
+      ...current,
+      layers: applyFinishPreset(
+        applyThumbnailTemplate(current.layers, preset),
+        preset === "center-impact" ? "pop-contrast" : "soft-morning",
+      ),
+    }));
+    setSelectedId(null);
+    setStatus("配置と仕上げをまとめて適用しました");
+  };
+
+  const applyFinish = (preset: FinishPreset) => {
+    commitProject((current) => ({ ...current, layers: applyFinishPreset(current.layers, preset) }));
+    setStatus(preset === "soft-morning" ? "やわらか朝活仕上げを適用しました" : "くっきりポップ仕上げを適用しました");
+  };
+
+  const trimSelectedImage = () => {
+    if (!selected || selected.kind !== "image" || selected.assetType === "backgrounds") return;
+    if (selected.cropWidth && selected.cropHeight) {
+      setStatus("この素材は既に透明余白を除去しています");
+      return;
+    }
+    const image = new window.Image();
+    image.onload = () => {
+      const bounds = visibleImageBounds(image);
+      const radians = (selected.rotation * Math.PI) / 180;
+      const offsetX = bounds.x * selected.scaleX;
+      const offsetY = bounds.y * selected.scaleY;
+      updateLayer(selected.id, {
+        x: selected.x + Math.cos(radians) * offsetX - Math.sin(radians) * offsetY,
+        y: selected.y + Math.sin(radians) * offsetX + Math.cos(radians) * offsetY,
+        width: bounds.width,
+        height: bounds.height,
+        cropX: bounds.x,
+        cropY: bounds.y,
+        cropWidth: bounds.width,
+        cropHeight: bounds.height,
+      });
+      setStatus("透明余白を除去しました");
+    };
+    image.src = selected.src;
   };
 
   const uploadAssets = async (files: FileList | null) => {
@@ -504,7 +661,7 @@ function App() {
       setStatus(payload.error || "保存できませんでした");
       return;
     }
-    setProject(payload.project);
+    setProject(sanitizeProject(payload.project));
     await refreshProjects();
     setStatus("プロジェクトを保存しました");
   };
@@ -640,16 +797,23 @@ function App() {
         <section className="workspace" ref={workspaceRef}>
           <div className="workspace-toolbar">
             <div className="preset-group">
-              <span>構図</span>
+              <span>完成テンプレート</span>
               <button onClick={() => applyPreset("character-right")}>文字左・人物右</button>
               <button onClick={() => applyPreset("character-left")}>人物左・文字右</button>
-              <button onClick={() => applyPreset("center-impact")}>中央インパクト</button>
+              <button onClick={() => applyPreset("center-impact")}>顔寄せインパクト</button>
             </div>
-            <label className="safe-toggle">
-              <input type="checkbox" checked={showSafeArea} onChange={(event) => setShowSafeArea(event.target.checked)} />
-              セーフエリア
-            </label>
-            <button className="add-text-button" onClick={addText}><Type size={16} />文字を追加</button>
+            <div className="preset-group finish-group">
+              <span>仕上げ</span>
+              <button onClick={() => applyFinish("soft-morning")}>やわらか</button>
+              <button onClick={() => applyFinish("pop-contrast")}>くっきり</button>
+            </div>
+            <div className="toolbar-end">
+              <label className="safe-toggle">
+                <input type="checkbox" checked={showSafeArea} onChange={(event) => setShowSafeArea(event.target.checked)} />
+                セーフエリア
+              </label>
+              <button className="add-text-button" onClick={addText}><Type size={16} />文字を追加</button>
+            </div>
           </div>
           <div className="canvas-viewport">
             <div
@@ -704,7 +868,16 @@ function App() {
           <section className="preview-section">
             <div className="section-title"><span>縮小プレビュー</span><small>320 × 180</small></div>
             <div className="mini-preview">{preview ? <img src={preview} alt="サムネイル縮小プレビュー" /> : null}</div>
-            <p>スマートフォン表示でも、顔と主題文字が読めるか確認します。</p>
+            <div className="analysis-summary">
+              <span>構成チェック</span>
+              <strong>{thumbnailAnalysis.passed} / {thumbnailAnalysis.total}</strong>
+            </div>
+            <div className="analysis-checks">
+              {thumbnailAnalysis.checks.map((check) => (
+                <span key={check.label} className={check.ok ? "passed" : "missing"}>{check.ok ? "✓" : "–"} {check.label}</span>
+              ))}
+            </div>
+            <p>未達項目は完成テンプレートまたは仕上げボタンで整えられます。</p>
           </section>
 
           <section className="projects-section">
@@ -760,6 +933,39 @@ function App() {
                       <Field label="影の距離"><input type="range" min="0" max="36" value={selected.shadowOffsetX} onChange={(event) => updateLayer(selected.id, { shadowOffsetX: Number(event.target.value), shadowOffsetY: Number(event.target.value) })} /></Field>
                     </div>
                     <Field label="文字揃え"><div className="segmented">{(["left", "center", "right"] as const).map((align) => <button key={align} className={selected.align === align ? "active" : ""} onClick={() => updateLayer(selected.id, { align })}>{align === "left" ? "左" : align === "center" ? "中央" : "右"}</button>)}</div></Field>
+                  </>
+                ) : null}
+                {selected.kind === "image" ? (
+                  <>
+                    {selected.assetType === "backgrounds" ? (
+                      <div className="appearance-panel">
+                        <span className="subsection-label">背景を抑える</span>
+                        <Field label={`ぼかし ${Math.round(selected.blurRadius || 0)}`}><input type="range" min="0" max="20" value={selected.blurRadius || 0} onChange={(event) => updateLayer(selected.id, { blurRadius: Number(event.target.value) })} /></Field>
+                        <Field label={`明るさ ${Math.round((selected.brightness || 0) * 100)}`}><input type="range" min="-50" max="25" value={Math.round((selected.brightness || 0) * 100)} onChange={(event) => updateLayer(selected.id, { brightness: Number(event.target.value) / 100 })} /></Field>
+                        <Field label={`彩度 ${Math.round((selected.saturation || 0) * 100)}`}><input type="range" min="-100" max="50" value={Math.round((selected.saturation || 0) * 100)} onChange={(event) => updateLayer(selected.id, { saturation: Number(event.target.value) / 100 })} /></Field>
+                        <div className="two-fields">
+                          <Field label="色被せ"><input type="color" value={selected.tintColor || "#302454"} onChange={(event) => updateLayer(selected.id, { tintColor: event.target.value })} /></Field>
+                          <Field label={`濃さ ${Math.round((selected.tintOpacity || 0) * 100)}%`}><input type="range" min="0" max="60" value={Math.round((selected.tintOpacity || 0) * 100)} onChange={(event) => updateLayer(selected.id, { tintOpacity: Number(event.target.value) / 100 })} /></Field>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="appearance-panel">
+                        <span className="subsection-label">素材を背景から分離</span>
+                        <div className="two-fields">
+                          <Field label="輪郭色"><input type="color" value={selected.outlineColor || "#ffffff"} onChange={(event) => updateLayer(selected.id, { outlineColor: event.target.value })} /></Field>
+                          <Field label={`輪郭 ${Math.round(selected.outlineWidth || 0)}`}><input type="range" min="0" max="28" value={selected.outlineWidth || 0} onChange={(event) => updateLayer(selected.id, { outlineWidth: Number(event.target.value) })} /></Field>
+                        </div>
+                        <div className="two-fields">
+                          <Field label="影色"><input type="color" value={selected.imageShadowColor || "#281f43"} onChange={(event) => updateLayer(selected.id, { imageShadowColor: event.target.value })} /></Field>
+                          <Field label={`影の濃さ ${Math.round((selected.imageShadowOpacity || 0) * 100)}%`}><input type="range" min="0" max="100" value={Math.round((selected.imageShadowOpacity || 0) * 100)} onChange={(event) => updateLayer(selected.id, { imageShadowOpacity: Number(event.target.value) / 100 })} /></Field>
+                        </div>
+                        <div className="two-fields">
+                          <Field label={`影ぼかし ${Math.round(selected.imageShadowBlur || 0)}`}><input type="range" min="0" max="40" value={selected.imageShadowBlur || 0} onChange={(event) => updateLayer(selected.id, { imageShadowBlur: Number(event.target.value) })} /></Field>
+                          <Field label={`影の距離 ${Math.round(selected.imageShadowOffsetX || 0)}`}><input type="range" min="0" max="32" value={selected.imageShadowOffsetX || 0} onChange={(event) => updateLayer(selected.id, { imageShadowOffsetX: Number(event.target.value), imageShadowOffsetY: Number(event.target.value) })} /></Field>
+                        </div>
+                        <button className="trim-button" onClick={trimSelectedImage}>透明余白を除去</button>
+                      </div>
+                    )}
                   </>
                 ) : null}
                 <div className="two-fields">

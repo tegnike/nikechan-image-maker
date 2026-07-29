@@ -31,6 +31,22 @@ export type ImageLayer = LayerBase & {
   kind: "image";
   src: string;
   assetType: AssetType;
+  cropX?: number;
+  cropY?: number;
+  cropWidth?: number;
+  cropHeight?: number;
+  blurRadius?: number;
+  brightness?: number;
+  saturation?: number;
+  tintColor?: string;
+  tintOpacity?: number;
+  outlineColor?: string;
+  outlineWidth?: number;
+  imageShadowColor?: string;
+  imageShadowBlur?: number;
+  imageShadowOpacity?: number;
+  imageShadowOffsetX?: number;
+  imageShadowOffsetY?: number;
 };
 
 export type TextLayer = LayerBase & {

@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { cloneLayer, createEmptyProject, createTitleLayer, moveItem, replaceBackgroundLayer, sanitizeProject, scaleLayerFromCenter } from "./lib";
+import {
+  analyzeThumbnail,
+  applyFinishPreset,
+  applyThumbnailTemplate,
+  cloneLayer,
+  createEmptyProject,
+  createTitleLayer,
+  imageAppearanceDefaults,
+  moveItem,
+  replaceBackgroundLayer,
+  sanitizeProject,
+  scaleLayerFromCenter,
+} from "./lib";
 
 describe("thumbnail project model", () => {
   it("creates a 1280x720 project with editable title text", () => {
@@ -76,5 +88,91 @@ describe("thumbnail project model", () => {
     const replaced = replaceBackgroundLayer([oldBackground, title, character], nextBackground);
     expect(replaced.map((layer) => layer.id)).toEqual(["new-background", title.id, "character"]);
     expect(replaced.filter((layer) => layer.kind === "image" && layer.assetType === "backgrounds")).toHaveLength(1);
+  });
+
+  it("moves generated title images with a completed template", () => {
+    const base = createTitleLayer();
+    const character = {
+      ...base,
+      id: "character",
+      kind: "image" as const,
+      src: "/character.png",
+      assetType: "characters" as const,
+      width: 700,
+      height: 1000,
+    };
+    const titleImage = {
+      ...character,
+      id: "generated-title",
+      src: "/title.png",
+      assetType: "texts" as const,
+      width: 900,
+      height: 500,
+    };
+    const arranged = applyThumbnailTemplate([character, titleImage], "character-right");
+    const arrangedTitle = arranged.find((layer) => layer.id === titleImage.id)!;
+
+    expect(arranged.at(-1)?.id).toBe(titleImage.id);
+    expect(arrangedTitle.x).toBeLessThan(100);
+    expect(Math.abs(arrangedTitle.width * arrangedTitle.scaleX)).toBeGreaterThan(600);
+  });
+
+  it("applies separation and background suppression finishing", () => {
+    const base = createTitleLayer();
+    const background = {
+      ...base,
+      ...imageAppearanceDefaults("backgrounds"),
+      id: "background",
+      kind: "image" as const,
+      src: "/background.png",
+      assetType: "backgrounds" as const,
+    };
+    const character = {
+      ...background,
+      ...imageAppearanceDefaults("characters"),
+      id: "character",
+      src: "/character.png",
+      assetType: "characters" as const,
+      height: 720,
+    };
+    const finished = applyFinishPreset([background, character, base], "pop-contrast");
+    const report = analyzeThumbnail(finished);
+
+    expect(finished.find((layer) => layer.id === background.id)).toMatchObject({ blurRadius: 2, tintOpacity: 0.18 });
+    expect(finished.find((layer) => layer.id === character.id)).toMatchObject({ outlineWidth: 14, imageShadowOpacity: 0.52 });
+    expect(report.checks.find((check) => check.label === "人物を分離")?.ok).toBe(true);
+    expect(report.checks.find((check) => check.label === "背景を抑制")?.ok).toBe(true);
+  });
+
+  it("adds image appearance defaults while sanitizing older projects", () => {
+    const project = createEmptyProject();
+    const legacyImage = {
+      ...createTitleLayer(),
+      id: "legacy-character",
+      kind: "image" as const,
+      src: "/legacy.png",
+      assetType: "characters" as const,
+    };
+    const sanitized = sanitizeProject({ ...project, layers: [legacyImage] });
+
+    expect(sanitized.layers[0]).toMatchObject({ outlineWidth: 10, imageShadowOpacity: 0.42 });
+  });
+
+  it("accepts a large vertical generated title", () => {
+    const base = createTitleLayer();
+    const verticalTitle = {
+      ...base,
+      id: "vertical-title",
+      kind: "image" as const,
+      src: "/vertical-title.png",
+      assetType: "texts" as const,
+      width: 320,
+      height: 900,
+      scaleX: 0.55,
+      scaleY: 0.55,
+    };
+    const report = analyzeThumbnail([verticalTitle]);
+
+    expect(report.checks.find((check) => check.label === "大きな文字")?.ok).toBe(true);
   });
 });
