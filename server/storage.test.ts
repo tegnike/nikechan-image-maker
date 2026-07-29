@@ -74,7 +74,7 @@ describe("thumbnail library storage", () => {
     });
   });
 
-  it("loads a background and title as one theme kit", async () => {
+  it("loads a background, title, and movable accent as one theme kit", async () => {
     await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
       version: 1,
       updatedAt: new Date().toISOString(),
@@ -87,6 +87,11 @@ describe("thumbnail library storage", () => {
         shapeLanguage: "large curves",
         backgroundAssetPath: "backgrounds/2026/07/29/background.png",
         titleAssetPath: "texts/2026/07/29/title.png",
+        accentAssets: [{
+          assetPath: "decorations/2026/07/29/mug.png",
+          role: "prop",
+          placement: { x: 850, y: 430, width: 260 },
+        }],
         createdAt: new Date().toISOString(),
       }],
     }));
@@ -97,6 +102,11 @@ describe("thumbnail library storage", () => {
       id: "theme-test",
       background: { type: "backgrounds", themeId: "theme-test" },
       title: { type: "texts", themeId: "theme-test" },
+      accents: [{
+        asset: { type: "decorations", themeId: "theme-test" },
+        role: "prop",
+        placement: { x: 850, y: 430, width: 260 },
+      }],
     });
   });
 });

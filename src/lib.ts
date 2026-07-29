@@ -264,6 +264,23 @@ export function replaceBackgroundLayer(layers: StudioLayer[], background: Studio
   ];
 }
 
+export function replaceThemeKitLayers(
+  layers: StudioLayer[],
+  background: ImageLayer,
+  accents: StudioLayer[],
+  title: ImageLayer,
+): StudioLayer[] {
+  const remaining = layers
+    .filter((layer) => {
+      if (layer.kind !== "image") return true;
+      if (layer.assetType === "backgrounds") return false;
+      if (["title", "prop", "foreground-accent"].includes(layer.themeRole || "")) return false;
+      return !(layer.themeId && (layer.assetType === "texts" || layer.assetType === "decorations"));
+    })
+    .map((layer) => layer.kind === "text" ? { ...layer, visible: false } : layer);
+  return [background, ...remaining, ...accents, title];
+}
+
 export function scaleLayerFromCenter<T extends StudioLayer>(layer: T, factor: number): T {
   if (!Number.isFinite(factor) || factor <= 0) return layer;
 

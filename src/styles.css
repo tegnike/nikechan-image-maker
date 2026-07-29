@@ -93,6 +93,7 @@ button { color: inherit; }
 .theme-preview img { position: absolute; display: block; }
 .theme-background { inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .theme-title { left: 3%; top: 21%; width: 57%; height: 57%; object-fit: contain; }
+.theme-accent { height: auto; object-fit: contain; }
 .theme-info { position: relative; padding: 9px 10px 10px; }
 .theme-info strong { display: block; overflow: hidden; color: #40394e; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .theme-info > span { display: block; margin-top: 3px; color: #8a8394; font-size: 9px; }

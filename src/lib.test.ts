@@ -9,6 +9,7 @@ import {
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
+  replaceThemeKitLayers,
   remapHeadAnchorToCrop,
   sanitizeProject,
   scaleLayerFromCenter,
@@ -89,6 +90,33 @@ describe("thumbnail project model", () => {
     const replaced = replaceBackgroundLayer([oldBackground, title, character], nextBackground);
     expect(replaced.map((layer) => layer.id)).toEqual(["new-background", title.id, "character"]);
     expect(replaced.filter((layer) => layer.kind === "image" && layer.assetType === "backgrounds")).toHaveLength(1);
+  });
+
+  it("replaces the complete generated theme while preserving characters", () => {
+    const base = createTitleLayer();
+    const image = {
+      ...base,
+      kind: "image" as const,
+      src: "/asset.png",
+      assetType: "texts" as const,
+    };
+    const oldBackground = { ...image, id: "old-background", assetType: "backgrounds" as const, themeId: "old" };
+    const oldTitle = { ...image, id: "old-title", themeId: "old", themeRole: "title" as const };
+    const oldProp = { ...image, id: "old-prop", assetType: "decorations" as const, themeId: "old", themeRole: "prop" as const };
+    const character = { ...image, id: "character", assetType: "characters" as const };
+    const nextBackground = { ...oldBackground, id: "next-background", themeId: "next", themeRole: "background" as const };
+    const nextProp = { ...oldProp, id: "next-prop", themeId: "next" };
+    const nextTitle = { ...oldTitle, id: "next-title", themeId: "next" };
+
+    const replaced = replaceThemeKitLayers(
+      [oldBackground, base, character, oldProp, oldTitle],
+      nextBackground,
+      [nextProp],
+      nextTitle,
+    );
+
+    expect(replaced.map((layer) => layer.id)).toEqual(["next-background", base.id, "character", "next-prop", "next-title"]);
+    expect(replaced.find((layer) => layer.id === base.id)?.visible).toBe(false);
   });
 
   it("moves generated title images with a completed template", () => {

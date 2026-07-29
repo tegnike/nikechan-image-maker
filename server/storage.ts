@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, ThemeKit, ThumbnailProject } from "../src/types";
+import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, ThemeAccentRole, ThemeKit, ThumbnailProject } from "../src/types";
 import { remapHeadAnchorToCrop } from "../src/lib";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
@@ -171,9 +171,16 @@ export async function listAssets(type: AssetType): Promise<Asset[]> {
   return assets;
 }
 
-type ThemeKitRecord = Omit<ThemeKit, "background" | "title"> & {
+type ThemeAccentRecord = {
+  assetPath: string;
+  role: ThemeAccentRole;
+  placement: { x: number; y: number; width: number };
+};
+
+type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "accents"> & {
   backgroundAssetPath: string;
   titleAssetPath: string;
+  accentAssets?: ThemeAccentRecord[];
 };
 
 function themeAsset(assetPath: string, type: AssetType, themeId: string, createdAt: string): Asset {
@@ -209,6 +216,24 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
       createdAt: theme.createdAt,
       background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
       title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),
+      accents: (theme.accentAssets || []).flatMap((accent) => {
+        const placement = accent.placement;
+        if (
+          !["prop", "foreground-accent"].includes(accent.role)
+          || !placement
+          || ![placement.x, placement.y, placement.width].every(Number.isFinite)
+          || placement.width <= 0
+        ) return [];
+        try {
+          return [{
+            asset: themeAsset(accent.assetPath, "decorations", theme.id, theme.createdAt),
+            role: accent.role,
+            placement,
+          }];
+        } catch {
+          return [];
+        }
+      }),
     }));
   } catch {
     return [];

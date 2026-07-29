@@ -23,7 +23,7 @@ import {
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThemeKit, ThumbnailProject } from "./types";
+import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, ThemeAccent, ThemeKit, ThumbnailProject } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
   analyzeThumbnail,
@@ -36,6 +36,7 @@ import {
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
+  replaceThemeKitLayers,
   remapHeadAnchorToCrop,
   sanitizeProject,
   scaleLayerFromCenter,
@@ -637,23 +638,35 @@ function App() {
   const addTheme = async (theme: ThemeKit) => {
     setStatus(`${theme.name} を組み立てています…`);
     try {
-      const [background, title] = await Promise.all([
+      const themeAccents = theme.accents || [];
+      const [backgroundLayer, titleLayer, accentLayers] = await Promise.all([
         buildAssetLayer(theme.background),
         buildAssetLayer(theme.title),
+        Promise.all(themeAccents.map(async (accent: ThemeAccent) => {
+          const layer = await buildAssetLayer(accent.asset);
+          if (layer.kind !== "image") return layer;
+          const scale = accent.placement.width / layer.width;
+          return {
+            ...layer,
+            name: `${accent.role === "prop" ? "テーマ小物" : "前景アクセント"} · ${layer.name}`,
+            themeRole: accent.role,
+            x: accent.placement.x,
+            y: accent.placement.y,
+            scaleX: scale,
+            scaleY: scale,
+          };
+        })),
       ]);
+      if (backgroundLayer.kind !== "image" || titleLayer.kind !== "image") throw new Error("Invalid theme assets");
+      const background = { ...backgroundLayer, themeRole: "background" as const };
+      const title = { ...titleLayer, themeRole: "title" as const };
       commitProject((current) => {
-        const withoutOldBackground = current.layers.filter(
-          (layer) => !(layer.kind === "image" && layer.assetType === "backgrounds"),
-        );
-        const hiddenOldTitles = withoutOldBackground.map((layer) => {
-          const isTitle = layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts");
-          return isTitle ? { ...layer, visible: false } : layer;
-        });
-        const assembled = [background, ...hiddenOldTitles, title];
+        const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title);
         return { ...current, layers: applyThumbnailTemplate(assembled, "character-right") };
       });
       setSelectedId(title.id);
-      setStatus(`${theme.name} を背景・文字セットで追加しました`);
+      const accentLabel = accentLayers.length ? `・アクセント${accentLayers.length}点` : "";
+      setStatus(`${theme.name} を背景・文字${accentLabel}セットで追加しました`);
     } catch {
       setStatus(`${theme.name} を読み込めませんでした`);
     }
@@ -856,7 +869,7 @@ function App() {
             <button className={assetType === "characters" ? "active" : ""} onClick={() => setAssetType("characters")}>キャラクター</button>
           </div>
           <div className="asset-tip">
-            {assetType === "themes" && "同じ世界観で生成した背景と「朝活」文字をセットで追加します。"}
+            {assetType === "themes" && "同じ世界観の背景・「朝活」文字・任意のテーマ小物をセットで追加します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
           </div>
           {assetType === "themes" ? (
@@ -865,11 +878,24 @@ function App() {
                 <button key={theme.id} className="theme-card" onClick={() => addTheme(theme)} title={`${theme.name}をセットで追加`}>
                   <div className="theme-preview">
                     <img className="theme-background" src={theme.background.url} alt="" />
+                    {(theme.accents || []).map((accent) => (
+                      <img
+                        key={accent.asset.id}
+                        className="theme-accent"
+                        src={accent.asset.url}
+                        alt=""
+                        style={{
+                          left: `${accent.placement.x / CANVAS_WIDTH * 100}%`,
+                          top: `${accent.placement.y / CANVAS_HEIGHT * 100}%`,
+                          width: `${accent.placement.width / CANVAS_WIDTH * 100}%`,
+                        }}
+                      />
+                    ))}
                     <img className="theme-title" src={theme.title.url} alt="" />
                   </div>
                   <div className="theme-info">
                     <strong>{theme.name}</strong>
-                    <span>{theme.category} · セットで追加</span>
+                    <span>{theme.category} · 背景＋文字{(theme.accents || []).length ? `＋アクセント${theme.accents.length}` : ""}</span>
                     <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
                   </div>
                 </button>

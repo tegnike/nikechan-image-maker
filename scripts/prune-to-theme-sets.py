@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove legacy standalone design assets while keeping complete theme pairs."""
+"""Remove legacy standalone design assets while keeping complete theme kits."""
 
 from __future__ import annotations
 
@@ -46,8 +46,11 @@ def main() -> None:
     for theme in themes:
         theme["backgroundAssetPath"] = normalize_asset_path(theme["backgroundAssetPath"])
         theme["titleAssetPath"] = normalize_asset_path(theme["titleAssetPath"])
-        theme.pop("decorationAssetPaths", None)
         keep_assets.update((theme["backgroundAssetPath"], theme["titleAssetPath"]))
+        for accent in theme.get("accentAssets", []):
+            accent["assetPath"] = normalize_asset_path(accent["assetPath"])
+            keep_assets.add(accent["assetPath"])
+        theme.pop("decorationAssetPaths", None)
 
     design_images: list[Path] = []
     for kind in ("backgrounds", "texts", "decorations"):

@@ -26,6 +26,18 @@ export type Asset = {
   headAnchor?: HeadAnchor;
 };
 
+export type ThemeAccentRole = "prop" | "foreground-accent";
+
+export type ThemeAccent = {
+  asset: Asset;
+  role: ThemeAccentRole;
+  placement: {
+    x: number;
+    y: number;
+    width: number;
+  };
+};
+
 export type ThemeKit = {
   id: string;
   name: string;
@@ -35,6 +47,7 @@ export type ThemeKit = {
   shapeLanguage: string;
   background: Asset;
   title: Asset;
+  accents: ThemeAccent[];
   createdAt: string;
 };
 
@@ -58,6 +71,7 @@ export type ImageLayer = LayerBase & {
   src: string;
   assetPath?: string;
   themeId?: string;
+  themeRole?: "background" | "title" | ThemeAccentRole;
   assetType: AssetType;
   headAnchor?: HeadAnchor;
   cropX?: number;
