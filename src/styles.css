@@ -150,6 +150,8 @@ button { color: inherit; }
 .layer-actions button { height: 28px; display: grid; place-items: center; border: 1px solid #e2dee7; border-radius: 7px; background: #fff; color: #797280; cursor: pointer; }
 .layer-actions button:hover { border-color: #bcb3ef; color: var(--violet); }
 .property-grid { display: flex; flex-direction: column; gap: 9px; }
+.unlock-button { height: 34px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #bdb4ef; border-radius: 8px; background: #f0edff; color: var(--violet-dark); font-size: 10px; font-weight: 700; cursor: pointer; }
+.unlock-button:hover { border-color: var(--violet); background: #e8e3ff; }
 .appearance-panel { display: flex; flex-direction: column; gap: 9px; padding: 10px; border: 1px solid #e7e2ef; border-radius: 9px; background: #faf9fc; }
 .subsection-label { color: #5f576c; font-size: 9px; font-weight: 700; }
 .trim-button { height: 31px; border: 1px solid #dcd6e7; border-radius: 7px; background: #fff; color: #655d70; font-size: 9px; cursor: pointer; }

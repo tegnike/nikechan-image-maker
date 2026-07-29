@@ -175,9 +175,10 @@ function ImageNode({
     const node = nodeRef.current;
     if (!node || !image) return;
     node.clearCache();
-    if (filters.length) node.cache({ pixelRatio: 1 });
+    if (filters.length || layer.assetType === "decorations") node.cache({ pixelRatio: 1 });
+    if (layer.assetType === "decorations") node.drawHitFromCache(12);
     node.getLayer()?.batchDraw();
-  }, [brightness, filters, image, saturation]);
+  }, [brightness, filters, image, layer.assetType, layer.cropHeight, layer.cropWidth, layer.cropX, layer.cropY, saturation]);
 
   useLayoutEffect(() => {
     if (selected && nodeRef.current && transformerRef.current) {
@@ -1053,7 +1054,7 @@ function App() {
                           key={layer.id}
                           layer={layer}
                           selected={selectedId === layer.id}
-                          onSelect={() => !layer.locked && setSelectedId(layer.id)}
+                          onSelect={() => setSelectedId(layer.id)}
                           onChange={(patch) => updateLayer(layer.id, patch)}
                         />
                       ) : (
@@ -1061,7 +1062,7 @@ function App() {
                           key={layer.id}
                           layer={layer}
                           selected={selectedId === layer.id}
-                          onSelect={() => !layer.locked && setSelectedId(layer.id)}
+                          onSelect={() => setSelectedId(layer.id)}
                           onChange={(patch) => updateLayer(layer.id, patch)}
                         />
                       ),
@@ -1131,6 +1132,17 @@ function App() {
             {!selected ? <div className="empty-properties">キャンバスかレイヤー一覧から<br />編集する要素を選択してください。</div> : (
               <div className="property-grid">
                 <Field label="レイヤー名"><input value={selected.name} onChange={(event) => updateLayer(selected.id, { name: event.target.value })} /></Field>
+                {selected.locked ? (
+                  <button
+                    className="unlock-button"
+                    onClick={() => {
+                      updateLayer(selected.id, { locked: false });
+                      setStatus(`${selected.name} のロックを解除しました`);
+                    }}
+                  >
+                    <LockOpen size={15} />ロック解除して編集
+                  </button>
+                ) : null}
                 {selected.kind === "text" ? (
                   <>
                     <Field label="表示文字"><textarea rows={2} value={selected.text} onChange={(event) => updateLayer(selected.id, { text: event.target.value })} /></Field>
@@ -1218,7 +1230,7 @@ function App() {
                 </div>
                 <div className="visibility-actions">
                   <button onClick={() => updateLayer(selected.id, { visible: !selected.visible })}>{selected.visible ? <Eye size={15} /> : <EyeOff size={15} />}{selected.visible ? "表示中" : "非表示"}</button>
-                  <button onClick={() => updateLayer(selected.id, { locked: !selected.locked })}>{selected.locked ? <Lock size={15} /> : <LockOpen size={15} />}{selected.locked ? "固定中" : "編集可"}</button>
+                  <button onClick={() => updateLayer(selected.id, { locked: !selected.locked })}>{selected.locked ? <LockOpen size={15} /> : <Lock size={15} />}{selected.locked ? "ロック解除" : "ロックする"}</button>
                   <button onClick={() => updateLayer(selected.id, { scaleX: -selected.scaleX })}>左右反転</button>
                   <button onClick={() => updateLayer(selected.id, { scaleY: -selected.scaleY })}>上下反転</button>
                 </div>
