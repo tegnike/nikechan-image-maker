@@ -4,6 +4,7 @@ import type {
   ImageLayer,
   StudioLayer,
   SupportCopyPreset,
+  ThemeKit,
   TextLayer,
   ThumbnailProject,
   TitleLayoutPreset,
@@ -72,6 +73,18 @@ export function cloneLayer(layer: StudioLayer): StudioLayer {
 
 export type ThumbnailTemplate = "character-right" | "character-left" | "center-impact";
 export type FinishPreset = "soft-morning" | "pop-contrast";
+export type ThemePatternFilter = "all" | TitleLayoutPreset;
+
+export function selectThemeKits(themes: ThemeKit[], filter: ThemePatternFilter): ThemeKit[] {
+  return themes
+    .filter((theme) => filter === "all" || (theme.titleLayout || "side-by-side") === filter)
+    .sort((a, b) => {
+      const aTime = Date.parse(a.createdAt);
+      const bTime = Date.parse(b.createdAt);
+      const byTime = (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      return byTime || b.id.localeCompare(a.id);
+    });
+}
 
 function findMainTitle(layers: StudioLayer[]) {
   return [...layers].reverse().find(

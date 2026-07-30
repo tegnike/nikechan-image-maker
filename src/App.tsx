@@ -41,8 +41,9 @@ import {
   remapHeadAnchorToCrop,
   sanitizeProject,
   scaleLayerFromCenter,
+  selectThemeKits,
 } from "./lib";
-import type { FinishPreset, ThumbnailTemplate } from "./lib";
+import type { FinishPreset, ThemePatternFilter, ThumbnailTemplate } from "./lib";
 
 type LibraryTab = "characters" | "themes";
 
@@ -114,6 +115,13 @@ const supportCopyLabels: Record<SupportCopyPreset, string> = {
   casual: "＋するよ！",
   reading: "＋あさかつ",
   english: "＋MORNING STREAM",
+};
+
+const themePatternLabels: Record<ThemePatternFilter, string> = {
+  all: "すべて",
+  "side-by-side": "人物と左右",
+  "split-character": "朝｜人物｜活",
+  "diagonal-impact": "斜め大文字",
 };
 
 function defaultThemeSupport(theme: ThemeKit) {
@@ -396,6 +404,7 @@ function App() {
   const [assetType, setAssetType] = useState<LibraryTab>("themes");
   const [assets, setAssets] = useState<Asset[]>([]);
   const [themes, setThemes] = useState<ThemeKit[]>([]);
+  const [themePattern, setThemePattern] = useState<ThemePatternFilter>("all");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
   const [status, setStatus] = useState("準備中…");
@@ -404,6 +413,7 @@ function App() {
   const [showSafeArea, setShowSafeArea] = useState(true);
   const stageRef = useRef<Konva.Stage>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const themeGridRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<ThumbnailProject[]>([]);
   const futureRef = useRef<ThumbnailProject[]>([]);
 
@@ -424,6 +434,20 @@ function App() {
       : []
   ))), [project.layers]);
   const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
+  const visibleThemes = useMemo(() => selectThemeKits(themes, themePattern), [themes, themePattern]);
+  const themePatternCounts = useMemo(() => themes.reduce<Record<TitleLayoutPreset, number>>((counts, theme) => {
+    const pattern = theme.titleLayout || "side-by-side";
+    counts[pattern] += 1;
+    return counts;
+  }, { "side-by-side": 0, "split-character": 0, "diagonal-impact": 0 }), [themes]);
+  const availableThemePatterns = useMemo<ThemePatternFilter[]>(() => [
+    "all",
+    ...(Object.keys(themePatternCounts) as TitleLayoutPreset[]).filter((pattern) => themePatternCounts[pattern] > 0),
+  ], [themePatternCounts]);
+
+  useEffect(() => {
+    if (themeGridRef.current) themeGridRef.current.scrollTop = 0;
+  }, [themePattern]);
 
   const refreshAssets = useCallback(async (type: AssetType) => {
     const response = await fetch(`/api/assets?type=${type}`);
@@ -961,48 +985,62 @@ function App() {
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
           </div>
           {assetType === "themes" ? (
-            <div className="theme-grid">
-              {themes.map((theme) => (
-                <button key={theme.id} className="theme-card" onClick={() => addTheme(theme)} title={`${theme.name}をセットで追加`}>
-                  <div className="theme-preview">
-                    <img className="theme-background" src={theme.background.url} alt="" />
-                    {(theme.accents || []).map((accent) => (
-                      <img
-                        key={accent.asset.id}
-                        className="theme-accent"
-                        src={accent.asset.url}
-                        alt=""
-                        style={{
-                          left: `${accent.placement.x / CANVAS_WIDTH * 100}%`,
-                          top: `${accent.placement.y / CANVAS_HEIGHT * 100}%`,
-                          width: `${accent.placement.width / CANVAS_WIDTH * 100}%`,
-                        }}
-                      />
-                    ))}
-                    {theme.titleLayout === "split-character" && theme.splitTitle ? (
-                      <>
-                        <img className="theme-title-part theme-title-asa" src={theme.splitTitle.asa.url} alt="" />
-                        <img className="theme-title-part theme-title-katsu" src={theme.splitTitle.katsu.url} alt="" />
-                      </>
-                    ) : theme.title ? <img className="theme-title" src={theme.title.url} alt="" /> : null}
-                    {defaultThemeSupport(theme) ? <img className="theme-support" src={defaultThemeSupport(theme)?.url} alt="" /> : null}
-                  </div>
-                  <div className="theme-info">
-                    <strong>{theme.name}</strong>
-                    <span>{theme.category} · 背景＋生成文字{(theme.title ? 1 : 0) + (theme.splitTitle ? 2 : 0) + Object.keys(theme.supports).length}点{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
-                      ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
-                      : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
-                    {theme.titleLayout || defaultThemeSupport(theme) ? (
-                      <span>{titleLayoutLabels[theme.titleLayout || "side-by-side"]} · {defaultThemeSupport(theme)
-                        ? supportCopyLabels[theme.supportCopy || "none"]
-                        : "補助画像なし"}</span>
-                    ) : null}
-                    <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
-                  </div>
-                </button>
-              ))}
-              {!themes.length ? <div className="empty-assets"><Sparkles size={28} /><p>テーマを準備中です</p></div> : null}
-            </div>
+            <>
+              <div className="theme-pattern-tabs" role="tablist" aria-label="テーマ構成">
+                {availableThemePatterns.map((pattern) => (
+                  <button
+                    key={pattern}
+                    role="tab"
+                    aria-selected={themePattern === pattern}
+                    className={themePattern === pattern ? "active" : ""}
+                    onClick={() => setThemePattern(pattern)}
+                  >{themePatternLabels[pattern]} <small>{pattern === "all" ? themes.length : themePatternCounts[pattern]}</small></button>
+                ))}
+              </div>
+              <div className="theme-list-summary">新しい順 · {visibleThemes.length}件</div>
+              <div className="theme-grid" ref={themeGridRef}>
+                {visibleThemes.map((theme) => (
+                  <button key={theme.id} className="theme-card" onClick={() => addTheme(theme)} title={`${theme.name}をセットで追加`}>
+                    <div className="theme-preview">
+                      <img className="theme-background" src={theme.background.url} alt="" />
+                      {(theme.accents || []).map((accent) => (
+                        <img
+                          key={accent.asset.id}
+                          className="theme-accent"
+                          src={accent.asset.url}
+                          alt=""
+                          style={{
+                            left: `${accent.placement.x / CANVAS_WIDTH * 100}%`,
+                            top: `${accent.placement.y / CANVAS_HEIGHT * 100}%`,
+                            width: `${accent.placement.width / CANVAS_WIDTH * 100}%`,
+                          }}
+                        />
+                      ))}
+                      {theme.titleLayout === "split-character" && theme.splitTitle ? (
+                        <>
+                          <img className="theme-title-part theme-title-asa" src={theme.splitTitle.asa.url} alt="" />
+                          <img className="theme-title-part theme-title-katsu" src={theme.splitTitle.katsu.url} alt="" />
+                        </>
+                      ) : theme.title ? <img className="theme-title" src={theme.title.url} alt="" /> : null}
+                      {defaultThemeSupport(theme) ? <img className="theme-support" src={defaultThemeSupport(theme)?.url} alt="" /> : null}
+                    </div>
+                    <div className="theme-info">
+                      <strong>{theme.name}</strong>
+                      <span>{theme.category} · 背景＋生成文字{(theme.title ? 1 : 0) + (theme.splitTitle ? 2 : 0) + Object.keys(theme.supports).length}点{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
+                        ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
+                        : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
+                      {theme.titleLayout || defaultThemeSupport(theme) ? (
+                        <span>{titleLayoutLabels[theme.titleLayout || "side-by-side"]} · {defaultThemeSupport(theme)
+                          ? supportCopyLabels[theme.supportCopy || "none"]
+                          : "補助画像なし"}</span>
+                      ) : null}
+                      <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
+                    </div>
+                  </button>
+                ))}
+                {!visibleThemes.length ? <div className="empty-assets"><Sparkles size={28} /><p>{themes.length ? "該当するテーマがありません" : "テーマを準備中です"}</p></div> : null}
+              </div>
+            </>
           ) : (
             <div className="asset-grid">
               {assets.map((asset) => (

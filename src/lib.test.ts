@@ -15,9 +15,34 @@ import {
   remapHeadAnchorToCrop,
   sanitizeProject,
   scaleLayerFromCenter,
+  selectThemeKits,
 } from "./lib";
+import type { ThemeKit } from "./types";
 
 describe("thumbnail project model", () => {
+  it("shows newest theme kits first and filters legacy themes as side-by-side", () => {
+    const theme = (id: string, createdAt: string, titleLayout?: ThemeKit["titleLayout"]): ThemeKit => ({
+      id,
+      name: id,
+      category: "朝活",
+      concept: "test",
+      palette: [],
+      shapeLanguage: "test",
+      titleLayout,
+      background: { id: `${id}-background`, name: id, type: "backgrounds", url: "/background.png", source: "library", createdAt },
+      supports: {},
+      accents: [],
+      createdAt,
+    });
+    const legacy = theme("legacy", "2026-07-28T10:00:00+02:00");
+    const split = theme("split", "2026-07-30T10:00:00+02:00", "split-character");
+    const side = theme("side", "2026-07-29T10:00:00+02:00", "side-by-side");
+
+    expect(selectThemeKits([legacy, split, side], "all").map((item) => item.id)).toEqual(["split", "side", "legacy"]);
+    expect(selectThemeKits([legacy, split, side], "side-by-side").map((item) => item.id)).toEqual(["side", "legacy"]);
+    expect(selectThemeKits([legacy, split, side], "split-character").map((item) => item.id)).toEqual(["split"]);
+  });
+
   it("creates a blank 1280x720 project without synthetic text", () => {
     const project = createEmptyProject();
     expect(project.width).toBe(1280);
