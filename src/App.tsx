@@ -125,6 +125,11 @@ const themeMoodLabels: Record<ThemeMoodFilter, string> = {
   cool: "クール",
   warm: "ウォーム",
   dark: "ダーク",
+  cute: "かわいい",
+  comic: "コミック",
+  paper: "紙もの",
+  nature: "自然",
+  stylish: "スタイリッシュ",
 };
 
 const themeMoodDescriptions: Record<ThemeMoodFilter, string> = {
@@ -134,6 +139,11 @@ const themeMoodDescriptions: Record<ThemeMoodFilter, string> = {
   cool: "青・水色・緑・紫が印象的な配色",
   warm: "ピンク・赤・橙・黄・ブラウンが印象的な配色",
   dark: "濃い背景を軸にした深みのある配色",
+  cute: "レース・パール・ハート・雲などのかわいい系統",
+  comic: "漫画・集中線・インク・吹き出し系統",
+  paper: "紙・ノート・スタンプ・グリッド系統",
+  nature: "花・葉・雨・植物など自然モチーフの系統",
+  stylish: "ネオン・ガラス・テック・幾何学系統",
 };
 
 function defaultThemeSupport(theme: ThemeKit) {
@@ -450,7 +460,18 @@ function App() {
   const themeMoodCounts = useMemo(() => themes.reduce<Record<ThemeMood, number>>((counts, theme) => {
     classifyThemeMoods(theme).forEach((mood) => { counts[mood] += 1; });
     return counts;
-  }, { pastel: 0, pop: 0, cool: 0, warm: 0, dark: 0 }), [themes]);
+  }, {
+    pastel: 0,
+    pop: 0,
+    cool: 0,
+    warm: 0,
+    dark: 0,
+    cute: 0,
+    comic: 0,
+    paper: 0,
+    nature: 0,
+    stylish: 0,
+  }), [themes]);
   const availableThemeMoods = useMemo<ThemeMoodFilter[]>(() => [
     "all",
     ...(Object.keys(themeMoodCounts) as ThemeMood[]).filter((mood) => themeMoodCounts[mood] > 0),

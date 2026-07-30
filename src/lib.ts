@@ -73,7 +73,7 @@ export function cloneLayer(layer: StudioLayer): StudioLayer {
 
 export type ThumbnailTemplate = "character-right" | "character-left" | "center-impact";
 export type FinishPreset = "soft-morning" | "pop-contrast";
-export type ThemeMood = "pastel" | "pop" | "cool" | "warm" | "dark";
+export type ThemeMood = "pastel" | "pop" | "cool" | "warm" | "dark" | "cute" | "comic" | "paper" | "nature" | "stylish";
 export type ThemeMoodFilter = "all" | ThemeMood;
 
 function paletteColor(hex: string) {
@@ -121,6 +121,17 @@ export function classifyThemeMoods(theme: ThemeKit): ThemeMood[] {
   if (temperature.warm > 0.55 && temperature.warm >= temperature.cool * 0.72) moods.push("warm");
   if (background.lightness < 0.35) moods.push("dark");
   if (!moods.length) moods.push(background.lightness < 0.55 ? "dark" : "pastel");
+
+  const styleRules: [ThemeMood, RegExp][] = [
+    ["cute", /cute|sweet|girly|lace|pearl|heart|candy|cotton|bubble|milky|scallop|かわい|ガーリー|レース|パール|ハート/i],
+    ["comic", /comic|manga|burst|speech|\bink\b|zine|漫画|コミック|吹き出し|集中線/i],
+    ["paper", /paper|stamp|postal|newsprint|sketch|note|cafe|calendar|stationery|scrapbook|notebook|grid|check-in|gingham|紙|スタンプ|ノート|カフェ|格子|チェック/i],
+    ["nature", /botanical|garden|leaf|clover|hydrangea|rain|umbrella|flower|petal|mist|植物|庭|葉|クローバー|紫陽花|雨|傘|花|霧/i],
+    ["stylish", /neon|tech|glass|prism|slate|cobalt|lacquer|tile|radio|studio|frost|capsule|sleek|broadcast|ネオン|テック|ガラス|プリズム|ラジオ|スタジオ/i],
+  ];
+  styleRules.forEach(([mood, pattern]) => {
+    if (pattern.test(theme.name)) moods.push(mood);
+  });
   return moods;
 }
 

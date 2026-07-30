@@ -41,6 +41,7 @@ describe("thumbnail project model", () => {
 
     const cool = theme("cool", "2026-07-26T10:00:00+02:00", ["#F7FBFF", "#1F6BFF", "#79E0D4", "#2A3040", "#FFFFFF"]);
     const warm = theme("warm", "2026-07-25T10:00:00+02:00", ["#FFF6E2", "#E8843A", "#7A4D2B", "#F5C96A", "#FFFFFF"]);
+    const styled = theme("Lavender Pearl Comic Note Garden Neon", "2026-07-24T10:00:00+02:00", ["#FFF4F8", "#CDB8FF", "#FFFFFF"]);
 
     expect(classifyThemeMoods(pastel)).toContain("pastel");
     expect(classifyThemeMoods(pop)).toContain("pop");
@@ -48,10 +49,12 @@ describe("thumbnail project model", () => {
     expect(classifyThemeMoods(cool)).toContain("cool");
     expect(classifyThemeMoods(warm)).toContain("warm");
     expect(classifyThemeMoods(dark)).toContain("dark");
+    expect(classifyThemeMoods(styled)).toEqual(expect.arrayContaining(["cute", "comic", "paper", "nature", "stylish"]));
     expect(selectThemeKits([soft, pastel, pop, dark], "all").map((item) => item.id)).toEqual(["pastel", "pop", "soft", "dark"]);
     expect(selectThemeKits([soft, pastel, pop, dark], "pastel").map((item) => item.id)).toEqual(["pastel", "soft"]);
     expect(selectThemeKits([cool, warm], "cool").map((item) => item.id)).toContain("cool");
     expect(selectThemeKits([cool, warm], "warm").map((item) => item.id)).toContain("warm");
+    expect(selectThemeKits([styled, cool], "paper").map((item) => item.id)).toEqual([styled.id]);
   });
 
   it("creates a blank 1280x720 project without synthetic text", () => {
