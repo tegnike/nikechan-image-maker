@@ -31,6 +31,7 @@ import {
   applyGeneratedSupportCopy,
   applyThumbnailTemplate,
   applyTitleLayout,
+  classifyThemeMood,
   cloneLayer,
   createEmptyProject,
   createId,
@@ -43,7 +44,7 @@ import {
   scaleLayerFromCenter,
   selectThemeKits,
 } from "./lib";
-import type { FinishPreset, ThemePatternFilter, ThumbnailTemplate } from "./lib";
+import type { FinishPreset, ThemeMood, ThemeMoodFilter, ThumbnailTemplate } from "./lib";
 
 type LibraryTab = "characters" | "themes";
 
@@ -117,11 +118,18 @@ const supportCopyLabels: Record<SupportCopyPreset, string> = {
   english: "＋MORNING STREAM",
 };
 
-const themePatternLabels: Record<ThemePatternFilter, string> = {
+const themeMoodLabels: Record<ThemeMoodFilter, string> = {
   all: "すべて",
-  "side-by-side": "人物と左右",
-  "split-character": "朝｜人物｜活",
-  "diagonal-impact": "斜め大文字",
+  pastel: "パステル",
+  pop: "ポップ",
+  dark: "ダーク",
+};
+
+const themeMoodDescriptions: Record<ThemeMoodFilter, string> = {
+  all: "すべての雰囲気",
+  pastel: "淡くやわらかい配色",
+  pop: "鮮やかな差し色が主役の明るい配色",
+  dark: "濃い背景を軸にした深みのある配色",
 };
 
 function defaultThemeSupport(theme: ThemeKit) {
@@ -404,7 +412,7 @@ function App() {
   const [assetType, setAssetType] = useState<LibraryTab>("themes");
   const [assets, setAssets] = useState<Asset[]>([]);
   const [themes, setThemes] = useState<ThemeKit[]>([]);
-  const [themePattern, setThemePattern] = useState<ThemePatternFilter>("all");
+  const [themeMood, setThemeMood] = useState<ThemeMoodFilter>("all");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
   const [status, setStatus] = useState("準備中…");
@@ -434,20 +442,20 @@ function App() {
       : []
   ))), [project.layers]);
   const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
-  const visibleThemes = useMemo(() => selectThemeKits(themes, themePattern), [themes, themePattern]);
-  const themePatternCounts = useMemo(() => themes.reduce<Record<TitleLayoutPreset, number>>((counts, theme) => {
-    const pattern = theme.titleLayout || "side-by-side";
-    counts[pattern] += 1;
+  const visibleThemes = useMemo(() => selectThemeKits(themes, themeMood), [themes, themeMood]);
+  const themeMoodCounts = useMemo(() => themes.reduce<Record<ThemeMood, number>>((counts, theme) => {
+    const mood = classifyThemeMood(theme);
+    counts[mood] += 1;
     return counts;
-  }, { "side-by-side": 0, "split-character": 0, "diagonal-impact": 0 }), [themes]);
-  const availableThemePatterns = useMemo<ThemePatternFilter[]>(() => [
+  }, { pastel: 0, pop: 0, dark: 0 }), [themes]);
+  const availableThemeMoods = useMemo<ThemeMoodFilter[]>(() => [
     "all",
-    ...(Object.keys(themePatternCounts) as TitleLayoutPreset[]).filter((pattern) => themePatternCounts[pattern] > 0),
-  ], [themePatternCounts]);
+    ...(Object.keys(themeMoodCounts) as ThemeMood[]).filter((mood) => themeMoodCounts[mood] > 0),
+  ], [themeMoodCounts]);
 
   useEffect(() => {
     if (themeGridRef.current) themeGridRef.current.scrollTop = 0;
-  }, [themePattern]);
+  }, [themeMood]);
 
   const refreshAssets = useCallback(async (type: AssetType) => {
     const response = await fetch(`/api/assets?type=${type}`);
@@ -986,15 +994,16 @@ function App() {
           </div>
           {assetType === "themes" ? (
             <>
-              <div className="theme-pattern-tabs" role="tablist" aria-label="テーマ構成">
-                {availableThemePatterns.map((pattern) => (
+              <div className="theme-mood-tabs" role="tablist" aria-label="テーマの雰囲気">
+                {availableThemeMoods.map((mood) => (
                   <button
-                    key={pattern}
+                    key={mood}
                     role="tab"
-                    aria-selected={themePattern === pattern}
-                    className={themePattern === pattern ? "active" : ""}
-                    onClick={() => setThemePattern(pattern)}
-                  >{themePatternLabels[pattern]} <small>{pattern === "all" ? themes.length : themePatternCounts[pattern]}</small></button>
+                    aria-selected={themeMood === mood}
+                    className={themeMood === mood ? "active" : ""}
+                    title={themeMoodDescriptions[mood]}
+                    onClick={() => setThemeMood(mood)}
+                  >{themeMoodLabels[mood]} <small>{mood === "all" ? themes.length : themeMoodCounts[mood]}</small></button>
                 ))}
               </div>
               <div className="theme-list-summary">新しい順 · {visibleThemes.length}件</div>

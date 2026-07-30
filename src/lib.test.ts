@@ -6,6 +6,7 @@ import {
   applyThumbnailTemplate,
   applyTitleLayout,
   cloneLayer,
+  classifyThemeMood,
   createEmptyProject,
   createTitleLayer,
   imageAppearanceDefaults,
@@ -20,27 +21,30 @@ import {
 import type { ThemeKit } from "./types";
 
 describe("thumbnail project model", () => {
-  it("shows newest theme kits first and filters legacy themes as side-by-side", () => {
-    const theme = (id: string, createdAt: string, titleLayout?: ThemeKit["titleLayout"]): ThemeKit => ({
+  it("shows newest theme kits first and filters them by palette mood", () => {
+    const theme = (id: string, createdAt: string, palette: string[]): ThemeKit => ({
       id,
       name: id,
       category: "朝活",
       concept: "test",
-      palette: [],
+      palette,
       shapeLanguage: "test",
-      titleLayout,
       background: { id: `${id}-background`, name: id, type: "backgrounds", url: "/background.png", source: "library", createdAt },
       supports: {},
       accents: [],
       createdAt,
     });
-    const legacy = theme("legacy", "2026-07-28T10:00:00+02:00");
-    const split = theme("split", "2026-07-30T10:00:00+02:00", "split-character");
-    const side = theme("side", "2026-07-29T10:00:00+02:00", "side-by-side");
+    const soft = theme("soft", "2026-07-28T10:00:00+02:00", ["#F8F3EC", "#6D7868", "#9AB7A2", "#795E72", "#FFFFFF"]);
+    const pastel = theme("pastel", "2026-07-30T10:00:00+02:00", ["#FFF4F8", "#CDB8FF", "#F6A6C6", "#BDEFF4", "#FFFFFF"]);
+    const pop = theme("pop", "2026-07-29T10:00:00+02:00", ["#FFF7F2", "#FF005D", "#91FF00", "#2A3040", "#FFFFFF"]);
+    const dark = theme("dark", "2026-07-27T10:00:00+02:00", ["#151923", "#1FB7B2", "#F15A8A", "#F6F1E8"]);
 
-    expect(selectThemeKits([legacy, split, side], "all").map((item) => item.id)).toEqual(["split", "side", "legacy"]);
-    expect(selectThemeKits([legacy, split, side], "side-by-side").map((item) => item.id)).toEqual(["side", "legacy"]);
-    expect(selectThemeKits([legacy, split, side], "split-character").map((item) => item.id)).toEqual(["split"]);
+    expect(classifyThemeMood(pastel)).toBe("pastel");
+    expect(classifyThemeMood(pop)).toBe("pop");
+    expect(classifyThemeMood(soft)).toBe("pastel");
+    expect(classifyThemeMood(dark)).toBe("dark");
+    expect(selectThemeKits([soft, pastel, pop, dark], "all").map((item) => item.id)).toEqual(["pastel", "pop", "soft", "dark"]);
+    expect(selectThemeKits([soft, pastel, pop, dark], "pastel").map((item) => item.id)).toEqual(["pastel", "soft"]);
   });
 
   it("creates a blank 1280x720 project without synthetic text", () => {

@@ -86,12 +86,12 @@ button { color: inherit; }
 .empty-assets { grid-column: 1 / -1; padding: 40px 10px; color: #aaa4b4; text-align: center; }
 .empty-assets p { margin: 9px 0 2px; color: #777180; font-size: 12px; font-weight: 600; }
 .empty-assets span { font-size: 9px; }
-.theme-pattern-tabs { flex: 0 0 auto; display: flex; gap: 4px; padding: 7px 11px 0; }
-.theme-pattern-tabs button { min-width: 0; flex: 1 1 0; padding: 6px 2px; overflow: hidden; border: 1px solid #e2ddeb; border-radius: 7px; background: #faf9fc; color: #837c8f; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.theme-pattern-tabs button:hover { border-color: #b9aff0; color: var(--violet); }
-.theme-pattern-tabs button.active { border-color: #9b8ff0; background: #eeeaff; color: var(--violet-dark); font-weight: 700; }
-.theme-pattern-tabs small { margin-left: 1px; color: #aaa3b3; font-size: 7px; font-weight: 600; }
-.theme-pattern-tabs button.active small { color: #7869db; }
+.theme-mood-tabs { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 7px 11px 0; }
+.theme-mood-tabs button { min-width: 0; padding: 6px 2px; overflow: hidden; border: 1px solid #e2ddeb; border-radius: 7px; background: #faf9fc; color: #837c8f; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.theme-mood-tabs button:hover { border-color: #b9aff0; color: var(--violet); }
+.theme-mood-tabs button.active { border-color: #9b8ff0; background: #eeeaff; color: var(--violet-dark); font-weight: 700; }
+.theme-mood-tabs small { margin-left: 1px; color: #aaa3b3; font-size: 7px; font-weight: 600; }
+.theme-mood-tabs button.active small { color: #7869db; }
 .theme-list-summary { flex: 0 0 auto; padding: 6px 13px 1px; color: #9992a2; font-size: 8px; text-align: right; }
 .theme-grid { min-height: 0; flex: 1 1 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 8px 11px 24px; display: flex; flex-direction: column; gap: 10px; }
 .theme-card { flex: 0 0 auto; width: 100%; padding: 0; overflow: hidden; border: 1px solid #dfd9ec; border-radius: 11px; background: #fff; text-align: left; cursor: pointer; transition: .16s ease; }

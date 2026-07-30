@@ -73,11 +73,41 @@ export function cloneLayer(layer: StudioLayer): StudioLayer {
 
 export type ThumbnailTemplate = "character-right" | "character-left" | "center-impact";
 export type FinishPreset = "soft-morning" | "pop-contrast";
-export type ThemePatternFilter = "all" | TitleLayoutPreset;
+export type ThemeMood = "pastel" | "pop" | "dark";
+export type ThemeMoodFilter = "all" | ThemeMood;
 
-export function selectThemeKits(themes: ThemeKit[], filter: ThemePatternFilter): ThemeKit[] {
+function paletteColor(hex: string) {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 16);
+  const red = (value >> 16) / 255;
+  const green = ((value >> 8) & 255) / 255;
+  const blue = (value & 255) / 255;
+  const maximum = Math.max(red, green, blue);
+  const minimum = Math.min(red, green, blue);
+  const chroma = maximum - minimum;
+  const lightness = (maximum + minimum) / 2;
+  return { lightness, chroma };
+}
+
+export function classifyThemeMood(theme: ThemeKit): ThemeMood {
+  const colors = theme.palette.flatMap((hex) => {
+    const color = paletteColor(hex);
+    return color ? [color] : [];
+  });
+  if (!colors.length) return "pastel";
+
+  const background = colors[0];
+  const softColors = colors.filter((color) => color.lightness > 0.55 && color.chroma >= 0.08 && color.chroma <= 0.58).length;
+  const strongColors = colors.filter((color) => color.lightness > 0.28 && color.lightness < 0.78 && color.chroma > 0.58).length;
+  if (background.lightness < 0.35) return "dark";
+  if (background.lightness > 0.82 && softColors >= 3) return "pastel";
+  return strongColors >= 1 ? "pop" : "pastel";
+}
+
+export function selectThemeKits(themes: ThemeKit[], filter: ThemeMoodFilter): ThemeKit[] {
   return themes
-    .filter((theme) => filter === "all" || (theme.titleLayout || "side-by-side") === filter)
+    .filter((theme) => filter === "all" || classifyThemeMood(theme) === filter)
     .sort((a, b) => {
       const aTime = Date.parse(a.createdAt);
       const bTime = Date.parse(b.createdAt);
