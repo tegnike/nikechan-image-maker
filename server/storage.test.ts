@@ -245,4 +245,39 @@ describe("thumbnail library storage", () => {
       supports: {},
     });
   });
+
+  it("keeps valid themes visible when one manifest record has an invalid asset path", async () => {
+    const createdAt = new Date().toISOString();
+    await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
+      version: 1,
+      updatedAt: createdAt,
+      themes: [
+        {
+          id: "valid-theme",
+          name: "Valid Theme",
+          category: "朝活",
+          concept: "valid",
+          palette: ["#ffffff"],
+          shapeLanguage: "simple",
+          backgroundAssetPath: "backgrounds/valid.png",
+          titleAssetPath: "texts/valid.png",
+          createdAt,
+        },
+        {
+          id: "invalid-theme",
+          name: "Invalid Theme",
+          category: "朝活",
+          concept: "invalid",
+          palette: ["#ffffff"],
+          shapeLanguage: "simple",
+          backgroundAssetPath: "../escape.png",
+          titleAssetPath: "texts/invalid.png",
+          createdAt,
+        },
+      ],
+    }));
+
+    const themes = await storage.listThemeKits();
+    expect(themes.map((theme) => theme.id)).toEqual(["valid-theme"]);
+  });
 });
