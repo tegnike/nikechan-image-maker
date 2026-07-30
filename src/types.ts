@@ -28,7 +28,7 @@ export type Asset = {
 
 export type ThemeAccentRole = "prop" | "foreground-accent";
 
-export type TitleLayoutPreset = "side-by-side" | "split-character" | "diagonal-impact";
+export type TitleLayoutPreset = "side-by-side" | "split-character" | "diagonal-impact" | "diagonal-pair";
 export type SupportCopyPreset = "none" | "stream" | "casual" | "reading" | "english";
 export type GeneratedSupportCopyPreset = Exclude<SupportCopyPreset, "none">;
 export type CompositionRole = "main-title" | "title-part-asa" | "title-part-katsu" | "support-copy";

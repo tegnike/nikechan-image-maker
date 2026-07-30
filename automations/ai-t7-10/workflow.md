@@ -35,7 +35,9 @@
 
 - `split-character`: `title-primary`で正確な一文字「朝」、`title-secondary`で正確な一文字「活」を別々に生成する。結合版「朝活」は作らない。
 - `side-by-side`: `title-primary`で正確な二文字「朝活」、`title-secondary`で選択した補助文字1点を生成する。
-- `diagonal-impact`: `title-primary`で正確な一文字「朝」、`title-secondary`で正確な一文字「活」を別々に生成する。合成時に「朝」を画面中心基準の第2象限（左上）、「活」を第4象限（右下）へ置く。結合版「朝活」を回転させる構成ではない。
+- `diagonal-pair`: `title-primary`で正確な二文字「朝活」を一つの透過ロゴとして生成する。ただし横並びにはせず、同じ画像内で「朝」を左上、「活」を右下へ段違いに組む。`title-secondary`では選択した補助文字1点を生成する。
+
+旧テーマにある`diagonal-impact`は、横並びの結合タイトルをアプリで回転する互換用レイアウトである。新しいテーマでは選択・生成せず、必ず`diagonal-pair`を使う。
 
 補助文字は`配信`、`するよ！`、`あさかつ`、`MORNING STREAM`から実例に最も合う一つだけを選ぶ。OSフォント、Webフォント、Canvas文字、SVG文字で代用しない。結合版「朝活」を切断、クロップ、マスクして「朝」「活」を作ることは絶対に禁止する。
 
@@ -72,15 +74,15 @@ background行のprompt記録と索引へ次を必ず保存し、後続3runへ一
 - `theme_id`, `theme_name`, `category="朝活"`, `mood`
 - `palette`: 正確なHEXを4〜5色
 - `contrast_anchor`, `shape_language`, `texture_language`, `title_treatment`
-- `title_layout`: `side-by-side`、`split-character`、`diagonal-impact`のいずれか
-- `primary_text_verbatim`: `split-character`または`diagonal-impact`なら`朝`、`side-by-side`なら`朝活`
+- `title_layout`: `side-by-side`、`split-character`、`diagonal-pair`のいずれか
+- `primary_text_verbatim`: `split-character`なら`朝`、それ以外は`朝活`
 - `secondary_kind`: `title-part-katsu`または`support-copy`
 - `secondary_text_verbatim`: `活`、`配信`、`するよ！`、`あさかつ`、`MORNING STREAM`のいずれか
-- `split-character`と`diagonal-impact`では`secondary_kind="title-part-katsu"`、`secondary_text_verbatim="活"`、`support_copy="none"`とする。`side-by-side`で補助文字を使う場合だけ`support_copy`を`stream`、`casual`、`reading`、`english`から選ぶ。
+- `split-character`では`secondary_kind="title-part-katsu"`、`secondary_text_verbatim="活"`、`support_copy="none"`とする。`side-by-side`と`diagonal-pair`では`secondary_kind="support-copy"`とし、`support_copy`を`stream`、`casual`、`reading`、`english`から選ぶ。
 - `support_copy_zone`, `gap_accent_mode`, `accent_concept`, `composition_zone`, `visual_family`
 - 参照動画情報と`reference_layout`, `reference_density`, `reference_palette_roles`, `reference_frame_grammar`
 
-完成テーマ直近6件と比較し、実例との構成類似性を壊さない範囲でmood、palette、shape_language、texture_languageの最低2軸を変える。主題構成は直近テーマから`split-character → diagonal-impact → side-by-side → split-character`の順に進め、同じ構成へ偏らせない。補助文字を使う構成では`stream → casual → reading → english → stream`の順を目安にしつつ、参照実例に合わなければ最も近い一つを選ぶ。
+完成テーマ直近6件と比較し、実例との構成類似性を壊さない範囲でmood、palette、shape_language、texture_languageの最低2軸を変える。主題構成は直近テーマから`split-character → diagonal-pair → side-by-side → split-character`の順に進め、同じ構成へ偏らせない。履歴上の`diagonal-impact`は構成順の判定時だけ`diagonal-pair`相当として扱う。補助文字を使う構成では`stream → casual → reading → english → stream`の順を目安にしつつ、参照実例に合わなければ最も近い一つを選ぶ。
 
 ## 共通品質
 
@@ -107,8 +109,9 @@ background行のprompt記録と索引へ次を必ず保存し、後続3runへ一
 
 - `title-primary`は仕様の`primary_text_verbatim`だけを正確に生成する。
 - `title-secondary`は仕様の`secondary_text_verbatim`だけを正確に生成する。
-- `split-character`と`diagonal-impact`の「朝」と「活」は別々のimage_gen呼び出しで作る。「活」は実背景と実「朝」を参照し、文字面、筆致、輪郭、影、装飾密度、可視サイズを揃える。
-- `diagonal-impact`は生成素材自体へ強い回転や斜体変形を焼き込まない。「斜め」は二文字の位置関係を左上から右下へずらす意味であり、結合した「朝活」全体を傾ける意味ではない。
+- `split-character`の「朝」と「活」は別々のimage_gen呼び出しで作る。「活」は実背景と実「朝」を参照し、文字面、筆致、輪郭、影、装飾密度、可視サイズを揃える。
+- `diagonal-pair`は一度のimage_gen呼び出しで「朝」と「活」を同じ透過素材内へ生成する。「朝」の可視中心を素材中心より左上、「活」の可視中心を右下へ置き、二文字の外接矩形が左上から右下へ流れる階段状のロゴにする。二文字を普通に横並びにしてはならない。
+- `diagonal-pair`は完成した横並び「朝活」を後処理で回転、切断、クロップ、マスクして作らない。また、素材全体や各文字を強く傾けることで斜めに見せない。「斜め」は同じ画像内の二文字の位置関係を指す。
 - 補助文字は主題より一段弱くするが、160px幅でも読める太さにする。主題と同じ輪郭・影・質感を使う。
 - 生成対象以外の漢字、仮名、英字、数字、ロゴ、アイコンを入れない。1画像につき文字ロゴ1点だけにする。
 - 完全に均一な`#00ff00`背景、影・床・反射なし、周囲に適度な余白、ロゴ内に`#00ff00`を使わないと明記する。
@@ -167,8 +170,8 @@ background行のprompt記録と索引へ次を必ず保存し、後続3runへ一
 - 1280x720で採用構成のプレビューを1枚だけ機械合成し`view_image`する。文字2点の統一感、人物安全領域、二文字タイトル上下の空きの解消、背景の疑似文字不在、小窓不在を確認する。
 - 合格時だけ`theme-kits.json`へ既存テーマを保持して原子的に追加する。ルートは`{"version":1,"updatedAt":"ISO-8601","themes":[]}`を維持する。
 - 書き込み前に同じディレクトリへ一時バックアップを作り、書き込み後にルート、version、themes配列を再読込検証する。失敗時は元へ戻して失敗通知する。
-- `split-character`と`diagonal-impact`は`titleAssetPath`を省略し、`splitTitleAssetPaths`へ朝・活を登録する。`supportAssetPaths`は省略する。
-- `side-by-side`は`titleAssetPath`へ朝活を登録し、`supportAssetPaths`へ選んだ補助文字1点だけを登録する。`splitTitleAssetPaths`は省略する。
+- `split-character`は`titleAssetPath`を省略し、`splitTitleAssetPaths`へ朝・活を登録する。`supportAssetPaths`は省略する。
+- `side-by-side`と`diagonal-pair`は`titleAssetPath`へ朝活を登録し、`supportAssetPaths`へ選んだ補助文字1点だけを登録する。`splitTitleAssetPaths`は省略する。
 
 ```json
 {

@@ -246,53 +246,35 @@ describe("thumbnail library storage", () => {
     });
   });
 
-  it("uses split title assets for diagonal layouts and downgrades legacy combined titles", async () => {
+  it("loads a diagonal layout from one generated 朝活 logo plus generated support copy", async () => {
     const createdAt = new Date().toISOString();
     await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
       version: 1,
       updatedAt: createdAt,
-      themes: [
-        {
-          id: "diagonal-parts",
-          name: "Diagonal Parts",
-          category: "朝活",
-          concept: "朝 upper-left and 活 lower-right",
-          palette: ["#112233"],
-          shapeLanguage: "diagonal rhythm",
-          titleLayout: "diagonal-impact",
-          supportCopy: "none",
-          backgroundAssetPath: "backgrounds/diagonal.png",
-          splitTitleAssetPaths: { asa: "texts/asa.png", katsu: "texts/katsu.png" },
-          createdAt,
-        },
-        {
-          id: "legacy-diagonal",
-          name: "Legacy Diagonal",
-          category: "朝活",
-          concept: "combined title from the old contract",
-          palette: ["#445566"],
-          shapeLanguage: "legacy",
-          titleLayout: "diagonal-impact",
-          backgroundAssetPath: "backgrounds/legacy.png",
-          titleAssetPath: "texts/asakatsu.png",
-          createdAt,
-        },
-      ],
+      themes: [{
+        id: "diagonal-logo",
+        name: "Diagonal Logo",
+        category: "朝活",
+        concept: "朝 upper-left and 活 lower-right inside one generated logo",
+        palette: ["#112233"],
+        shapeLanguage: "diagonal rhythm",
+        titleLayout: "diagonal-pair",
+        supportCopy: "english",
+        backgroundAssetPath: "backgrounds/diagonal.png",
+        titleAssetPath: "texts/diagonal-asakatsu.png",
+        supportAssetPaths: { english: "texts/morning-stream.png" },
+        createdAt,
+      }],
     }));
 
     const themes = await storage.listThemeKits();
-    expect(themes.find((theme) => theme.id === "diagonal-parts")).toMatchObject({
-      titleLayout: "diagonal-impact",
-      title: undefined,
-      splitTitle: {
-        asa: { assetPath: "texts/asa.png" },
-        katsu: { assetPath: "texts/katsu.png" },
-      },
-    });
-    expect(themes.find((theme) => theme.id === "legacy-diagonal")).toMatchObject({
-      titleLayout: "side-by-side",
-      title: { assetPath: "texts/asakatsu.png" },
+    expect(themes).toHaveLength(1);
+    expect(themes[0]).toMatchObject({
+      titleLayout: "diagonal-pair",
+      supportCopy: "english",
+      title: { assetPath: "texts/diagonal-asakatsu.png" },
       splitTitle: undefined,
+      supports: { english: { assetPath: "texts/morning-stream.png" } },
     });
   });
 

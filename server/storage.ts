@@ -230,7 +230,7 @@ type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "splitTitle" | "su
   accentAssets?: ThemeAccentRecord[];
 };
 
-const TITLE_LAYOUTS = new Set<TitleLayoutPreset>(["side-by-side", "split-character", "diagonal-impact"]);
+const TITLE_LAYOUTS = new Set<TitleLayoutPreset>(["side-by-side", "split-character", "diagonal-impact", "diagonal-pair"]);
 const SUPPORT_COPIES = new Set<SupportCopyPreset>(["none", "stream", "casual", "reading", "english"]);
 const GENERATED_SUPPORT_COPIES: GeneratedSupportCopyPreset[] = ["stream", "casual", "reading", "english"];
 
@@ -288,8 +288,7 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
         const title = theme.titleAssetPath
           ? themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt)
           : undefined;
-        const usesSplitTitle = requestedLayout === "split-character" || requestedLayout === "diagonal-impact";
-        const usableLayout = usesSplitTitle
+        const usableLayout = requestedLayout === "split-character"
           ? (splitTitle ? requestedLayout : (title ? "side-by-side" : undefined))
           : (title ? requestedLayout : undefined);
         return [{

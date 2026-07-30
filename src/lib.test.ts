@@ -296,20 +296,20 @@ describe("thumbnail project model", () => {
     expect(arranged[0]).toMatchObject({ src: "/title.png", visible: true, compositionRole: "main-title" });
   });
 
-  it("places separately generated 朝 and 活 diagonally from upper-left to lower-right", () => {
+  it("places a generated diagonal 朝活 logo without rotating the combined image", () => {
     const base = createTitleLayer();
-    const image = {
+    const title = {
       ...base,
+      id: "diagonal-title",
       kind: "image" as const,
-      src: "/asset.png",
+      src: "/diagonal-asakatsu.png",
       assetType: "texts" as const,
-      width: 460,
-      height: 500,
+      compositionRole: "main-title" as const,
+      width: 1000,
+      height: 700,
     };
-    const asa = { ...image, id: "asa", src: "/asa.png", compositionRole: "title-part-asa" as const, visible: false };
-    const katsu = { ...image, id: "katsu", src: "/katsu.png", compositionRole: "title-part-katsu" as const, visible: false };
     const character = {
-      ...image,
+      ...title,
       id: "character",
       src: "/character.png",
       assetType: "characters" as const,
@@ -325,26 +325,33 @@ describe("thumbnail project model", () => {
       },
     };
 
-    const arranged = applyTitleLayout([character, asa, katsu], "diagonal-impact");
-    const nextAsa = arranged.find((layer) => layer.id === asa.id)!;
-    const nextKatsu = arranged.find((layer) => layer.id === katsu.id)!;
+    const arranged = applyTitleLayout([character, title], "diagonal-pair");
+    const nextTitle = arranged.find((layer) => layer.id === title.id)!;
     const nextCharacter = arranged.find((layer) => layer.id === character.id)!;
-    const asaCenter = {
-      x: nextAsa.x + nextAsa.width * nextAsa.scaleX / 2,
-      y: nextAsa.y + nextAsa.height * nextAsa.scaleY / 2,
-    };
-    const katsuCenter = {
-      x: nextKatsu.x + nextKatsu.width * nextKatsu.scaleX / 2,
-      y: nextKatsu.y + nextKatsu.height * nextKatsu.scaleY / 2,
+
+    expect(nextTitle).toMatchObject({ src: "/diagonal-asakatsu.png", visible: true, rotation: 0 });
+    expect(Math.abs(nextTitle.width * nextTitle.scaleX)).toBeLessThanOrEqual(900);
+    expect(Math.abs(nextTitle.width * nextTitle.scaleX)).toBeGreaterThan(600);
+    expect(Math.abs(nextTitle.height * nextTitle.scaleY)).toBeLessThanOrEqual(590);
+    expect("cropWidth" in nextTitle).toBe(false);
+    expect(nextCharacter.x + nextCharacter.width * nextCharacter.scaleX * character.headAnchor.centerX).toBeCloseTo(1035);
+  });
+
+  it("keeps the rotated placement used by legacy diagonal themes", () => {
+    const base = createTitleLayer();
+    const title = {
+      ...base,
+      id: "legacy-diagonal-title",
+      kind: "image" as const,
+      src: "/legacy-horizontal-asakatsu.png",
+      assetType: "texts" as const,
+      compositionRole: "main-title" as const,
+      width: 1000,
+      height: 400,
     };
 
-    expect(nextAsa).toMatchObject({ visible: true, rotation: 0 });
-    expect(nextKatsu).toMatchObject({ visible: true, rotation: 0 });
-    expect(asaCenter.x).toBeLessThan(640);
-    expect(asaCenter.y).toBeLessThan(360);
-    expect(katsuCenter.x).toBeGreaterThan(640);
-    expect(katsuCenter.y).toBeGreaterThan(360);
-    expect(nextCharacter.x + nextCharacter.width * nextCharacter.scaleX * character.headAnchor.centerX).toBeCloseTo(640);
+    const arranged = applyTitleLayout([title], "diagonal-impact");
+    expect(arranged[0]).toMatchObject({ rotation: -12, visible: true });
   });
 
   it("switches only between generated support-copy images", () => {
@@ -361,12 +368,13 @@ describe("thumbnail project model", () => {
     };
     const reading = { ...title, id: "reading", src: "/reading.png", compositionRole: "support-copy" as const, supportCopyPreset: "reading" as const, visible: false };
     const english = { ...title, id: "english", src: "/english.png", compositionRole: "support-copy" as const, supportCopyPreset: "english" as const, visible: false };
-    const sideBySide = applyTitleLayout([title, reading, english], "side-by-side");
-    const withReading = applyGeneratedSupportCopy(sideBySide, "reading");
+    const diagonal = applyTitleLayout([title, reading, english], "diagonal-pair");
+    const withReading = applyGeneratedSupportCopy(diagonal, "reading");
     const withEnglish = applyGeneratedSupportCopy(withReading, "english");
     const support = withEnglish.filter((layer) => layer.compositionRole === "support-copy");
 
     expect(support).toHaveLength(2);
+    expect(diagonal.find((layer) => layer.id === title.id)).toMatchObject({ rotation: 0, visible: true });
     expect(support.find((layer) => layer.id === reading.id)).toMatchObject({ kind: "image", visible: false });
     expect(support.find((layer) => layer.id === english.id)).toMatchObject({ kind: "image", visible: true, src: "/english.png", rotation: -2 });
   });
@@ -393,8 +401,8 @@ describe("thumbnail project model", () => {
       height: 180,
     };
 
-    const sideBySide = applyTitleLayout([title, support], "side-by-side");
-    const positioned = sideBySide.find((layer) => layer.id === support.id)!;
+    const diagonal = applyTitleLayout([title, support], "diagonal-pair");
+    const positioned = diagonal.find((layer) => layer.id === support.id)!;
 
     expect(positioned).toMatchObject({ kind: "image", rotation: -2, compositionRole: "support-copy" });
     expect(Math.abs(positioned.width * positioned.scaleX)).toBeLessThanOrEqual(560);
