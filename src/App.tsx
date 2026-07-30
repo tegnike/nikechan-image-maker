@@ -107,7 +107,7 @@ function visibleImageBounds(image: HTMLImageElement) {
 const titleLayoutLabels: Record<TitleLayoutPreset, string> = {
   "side-by-side": "人物と左右",
   "split-character": "朝｜人物｜活",
-  "diagonal-impact": "斜め大文字",
+  "diagonal-impact": "朝↘活（左上・右下）",
 };
 
 const supportCopyLabels: Record<SupportCopyPreset, string> = {
@@ -774,8 +774,9 @@ function App() {
         supportCopyPreset: preset,
         visible: false,
       }] : []);
-      if (theme.titleLayout === "split-character" && splitParts.length !== 2) throw new Error("Missing split title assets");
-      if (theme.titleLayout !== "split-character" && !title) throw new Error("Missing main title asset");
+      const usesSplitTitle = theme.titleLayout === "split-character" || theme.titleLayout === "diagonal-impact";
+      if (usesSplitTitle && splitParts.length !== 2) throw new Error("Missing split title assets");
+      if (!usesSplitTitle && !title) throw new Error("Missing main title asset");
       commitProject((current) => {
         const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title, splitParts, generatedSupports);
         const templated = applyThumbnailTemplate(assembled, "character-right");
@@ -785,7 +786,7 @@ function App() {
           layers: applyGeneratedSupportCopy(laidOut, theme.supportCopy || "none"),
         };
       });
-      setSelectedId(theme.titleLayout === "split-character" ? null : title?.id || null);
+      setSelectedId(usesSplitTitle ? null : title?.id || null);
       const textAssetCount = (title ? 1 : 0) + splitParts.length + generatedSupports.length;
       const accentLabel = accentLayers.length ? `・アクセント${accentLayers.length}点` : "";
       setStatus(`${theme.name} を背景・生成文字${textAssetCount}点${accentLabel}セットで追加しました`);
@@ -812,12 +813,13 @@ function App() {
   const applyTitleComposition = (preset: TitleLayoutPreset) => {
     const hasAsa = project.layers.some((layer) => layer.compositionRole === "title-part-asa");
     const hasKatsu = project.layers.some((layer) => layer.compositionRole === "title-part-katsu");
-    if (preset === "split-character" && (!hasAsa || !hasKatsu)) {
-      setStatus("独立生成された「朝」と「活」があるテーマでのみ分割配置できます");
+    const usesSplitTitle = preset === "split-character" || preset === "diagonal-impact";
+    if (usesSplitTitle && (!hasAsa || !hasKatsu)) {
+      setStatus("独立生成された「朝」と「活」があるテーマでのみ適用できます");
       return;
     }
-    if (preset !== "split-character" && !project.layers.some((layer) => layer.compositionRole === "main-title")) {
-      setStatus("生成された「朝活」があるテーマでのみ斜め配置できます");
+    if (!usesSplitTitle && !project.layers.some((layer) => layer.compositionRole === "main-title")) {
+      setStatus("生成された「朝活」があるテーマでのみ左右配置できます");
       return;
     }
     commitProject((current) => ({ ...current, layers: applyTitleLayout(current.layers, preset) }));
@@ -1049,10 +1051,10 @@ function App() {
                           }}
                         />
                       ))}
-                      {theme.titleLayout === "split-character" && theme.splitTitle ? (
+                      {theme.splitTitle ? (
                         <>
-                          <img className="theme-title-part theme-title-asa" src={theme.splitTitle.asa.url} alt="" />
-                          <img className="theme-title-part theme-title-katsu" src={theme.splitTitle.katsu.url} alt="" />
+                          <img className={`theme-title-part theme-title-asa theme-title-${theme.titleLayout || "split-character"}`} src={theme.splitTitle.asa.url} alt="" />
+                          <img className={`theme-title-part theme-title-katsu theme-title-${theme.titleLayout || "split-character"}`} src={theme.splitTitle.katsu.url} alt="" />
                         </>
                       ) : theme.title ? <img className="theme-title" src={theme.title.url} alt="" /> : null}
                       {defaultThemeSupport(theme) ? <img className="theme-support" src={defaultThemeSupport(theme)?.url} alt="" /> : null}
@@ -1108,10 +1110,10 @@ function App() {
                 onClick={() => applyTitleComposition("split-character")}
               >朝｜人物｜活</button>
               <button
-                disabled={!hasGeneratedMainTitle}
-                title={hasGeneratedMainTitle ? "生成した朝活を斜めに配置" : "生成された朝活が必要です"}
+                disabled={!hasGeneratedSplitTitle}
+                title={hasGeneratedSplitTitle ? "独立生成した「朝」を左上、「活」を右下へ配置" : "独立生成した朝・活が必要です"}
                 onClick={() => applyTitleComposition("diagonal-impact")}
-              >斜め大文字</button>
+              >朝↘活</button>
             </div>
             <div className="preset-group finish-group">
               <span>補助</span>

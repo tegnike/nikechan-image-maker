@@ -296,6 +296,57 @@ describe("thumbnail project model", () => {
     expect(arranged[0]).toMatchObject({ src: "/title.png", visible: true, compositionRole: "main-title" });
   });
 
+  it("places separately generated 朝 and 活 diagonally from upper-left to lower-right", () => {
+    const base = createTitleLayer();
+    const image = {
+      ...base,
+      kind: "image" as const,
+      src: "/asset.png",
+      assetType: "texts" as const,
+      width: 460,
+      height: 500,
+    };
+    const asa = { ...image, id: "asa", src: "/asa.png", compositionRole: "title-part-asa" as const, visible: false };
+    const katsu = { ...image, id: "katsu", src: "/katsu.png", compositionRole: "title-part-katsu" as const, visible: false };
+    const character = {
+      ...image,
+      id: "character",
+      src: "/character.png",
+      assetType: "characters" as const,
+      width: 600,
+      height: 1400,
+      headAnchor: {
+        centerX: 0.5,
+        centerY: 0.18,
+        width: 0.4,
+        height: 0.25,
+        method: "manual-reviewed" as const,
+        confidence: 0.95,
+      },
+    };
+
+    const arranged = applyTitleLayout([character, asa, katsu], "diagonal-impact");
+    const nextAsa = arranged.find((layer) => layer.id === asa.id)!;
+    const nextKatsu = arranged.find((layer) => layer.id === katsu.id)!;
+    const nextCharacter = arranged.find((layer) => layer.id === character.id)!;
+    const asaCenter = {
+      x: nextAsa.x + nextAsa.width * nextAsa.scaleX / 2,
+      y: nextAsa.y + nextAsa.height * nextAsa.scaleY / 2,
+    };
+    const katsuCenter = {
+      x: nextKatsu.x + nextKatsu.width * nextKatsu.scaleX / 2,
+      y: nextKatsu.y + nextKatsu.height * nextKatsu.scaleY / 2,
+    };
+
+    expect(nextAsa).toMatchObject({ visible: true, rotation: 0 });
+    expect(nextKatsu).toMatchObject({ visible: true, rotation: 0 });
+    expect(asaCenter.x).toBeLessThan(640);
+    expect(asaCenter.y).toBeLessThan(360);
+    expect(katsuCenter.x).toBeGreaterThan(640);
+    expect(katsuCenter.y).toBeGreaterThan(360);
+    expect(nextCharacter.x + nextCharacter.width * nextCharacter.scaleX * character.headAnchor.centerX).toBeCloseTo(640);
+  });
+
   it("switches only between generated support-copy images", () => {
     const base = createTitleLayer();
     const title = {
@@ -310,15 +361,14 @@ describe("thumbnail project model", () => {
     };
     const reading = { ...title, id: "reading", src: "/reading.png", compositionRole: "support-copy" as const, supportCopyPreset: "reading" as const, visible: false };
     const english = { ...title, id: "english", src: "/english.png", compositionRole: "support-copy" as const, supportCopyPreset: "english" as const, visible: false };
-    const diagonal = applyTitleLayout([title, reading, english], "diagonal-impact");
-    const withReading = applyGeneratedSupportCopy(diagonal, "reading");
+    const sideBySide = applyTitleLayout([title, reading, english], "side-by-side");
+    const withReading = applyGeneratedSupportCopy(sideBySide, "reading");
     const withEnglish = applyGeneratedSupportCopy(withReading, "english");
     const support = withEnglish.filter((layer) => layer.compositionRole === "support-copy");
 
-    expect(diagonal[0].rotation).toBe(-12);
     expect(support).toHaveLength(2);
     expect(support.find((layer) => layer.id === reading.id)).toMatchObject({ kind: "image", visible: false });
-    expect(support.find((layer) => layer.id === english.id)).toMatchObject({ kind: "image", visible: true, src: "/english.png", rotation: -8 });
+    expect(support.find((layer) => layer.id === english.id)).toMatchObject({ kind: "image", visible: true, src: "/english.png", rotation: -2 });
   });
 
   it("positions a generated support-copy image with the selected title layout", () => {
@@ -343,12 +393,12 @@ describe("thumbnail project model", () => {
       height: 180,
     };
 
-    const diagonal = applyTitleLayout([title, support], "diagonal-impact");
-    const positioned = diagonal.find((layer) => layer.id === support.id)!;
+    const sideBySide = applyTitleLayout([title, support], "side-by-side");
+    const positioned = sideBySide.find((layer) => layer.id === support.id)!;
 
-    expect(positioned).toMatchObject({ kind: "image", rotation: -8, compositionRole: "support-copy" });
-    expect(Math.abs(positioned.width * positioned.scaleX)).toBeLessThanOrEqual(580);
-    expect(Math.abs(positioned.height * positioned.scaleY)).toBeLessThanOrEqual(88);
+    expect(positioned).toMatchObject({ kind: "image", rotation: -2, compositionRole: "support-copy" });
+    expect(Math.abs(positioned.width * positioned.scaleX)).toBeLessThanOrEqual(560);
+    expect(Math.abs(positioned.height * positioned.scaleY)).toBeLessThanOrEqual(92);
   });
 
   it("positions and scales a character from its head anchor", () => {

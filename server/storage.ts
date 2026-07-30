@@ -288,7 +288,8 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
         const title = theme.titleAssetPath
           ? themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt)
           : undefined;
-        const usableLayout = requestedLayout === "split-character"
+        const usesSplitTitle = requestedLayout === "split-character" || requestedLayout === "diagonal-impact";
+        const usableLayout = usesSplitTitle
           ? (splitTitle ? requestedLayout : (title ? "side-by-side" : undefined))
           : (title ? requestedLayout : undefined);
         return [{

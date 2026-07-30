@@ -302,16 +302,17 @@ export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPrese
   const source = findMainTitle(layers);
   const asa = layers.find((layer) => layer.compositionRole === "title-part-asa");
   const katsu = layers.find((layer) => layer.compositionRole === "title-part-katsu");
-  if (preset === "split-character" && (!asa || !katsu)) {
+  const usesSplitTitle = preset === "split-character" || preset === "diagonal-impact";
+  if (usesSplitTitle && (!asa || !katsu)) {
     return source ? applyTitleLayout(layers, "side-by-side") : layers;
   }
-  if (preset !== "split-character" && !source) return layers;
+  if (!usesSplitTitle && !source) return layers;
 
   let next = layers.map((layer) => {
     if (source && layer.id === source.id) {
-      return { ...layer, compositionRole: "main-title" as const, visible: preset !== "split-character" };
+      return { ...layer, compositionRole: "main-title" as const, visible: !usesSplitTitle };
     }
-    if (isTitlePart(layer)) return { ...layer, visible: preset === "split-character" };
+    if (isTitlePart(layer)) return { ...layer, visible: usesSplitTitle };
     return layer;
   });
 
@@ -327,12 +328,11 @@ export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPrese
 
   if (preset === "diagonal-impact") {
     next = next.map((layer) => {
-      if (source && layer.id === source.id) {
-        return { ...fitLayerInBox(layer, { x: 10, y: 36, width: 900, height: 590 }, 0, 0.5), rotation: -12 };
-      }
+      if (asa && layer.id === asa.id) return { ...fitLayerInBox(layer, { x: 24, y: 20, width: 500, height: 350 }), rotation: 0 };
+      if (katsu && layer.id === katsu.id) return { ...fitLayerInBox(layer, { x: 756, y: 350, width: 500, height: 350 }), rotation: 0 };
       if (layer.id === character?.id) {
-        const fallback = fitLayerInBox(character, { x: 690, y: -150, width: 650, height: 930 }, 1, 1);
-        return { ...placeCharacterByHead(character, { x: 1035, y: 240, headHeight: 405 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
+        const fallback = fitLayerInBox(character, { x: 330, y: -150, width: 620, height: 930 }, 0.5, 1);
+        return { ...placeCharacterByHead(character, { x: 640, y: 235, headHeight: 405 }), ...(!character.headAnchor ? fallback : {}), rotation: 0 };
       }
       return layer;
     });
