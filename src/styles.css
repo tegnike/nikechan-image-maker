@@ -93,6 +93,9 @@ button { color: inherit; }
 .theme-preview img { position: absolute; display: block; }
 .theme-background { inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .theme-title { left: 3%; top: 21%; width: 57%; height: 57%; object-fit: contain; }
+.theme-title-part { top: 20%; width: 25%; height: 58%; object-fit: contain; }
+.theme-title-asa { left: 3%; }
+.theme-title-katsu { right: 3%; }
 .theme-support { left: 8%; bottom: 7%; width: 43%; height: 15%; object-fit: contain; }
 .theme-accent { height: auto; object-fit: contain; }
 .theme-info { position: relative; padding: 9px 10px 10px; }
@@ -107,6 +110,7 @@ button { color: inherit; }
 .preset-group > span { margin-right: 3px; color: #8b8595; font-size: 10px; }
 .preset-group button, .add-text-button { padding: 6px 9px; border: 1px solid #ddd8e6; border-radius: 7px; background: #fff; color: #625b6f; font-size: 10px; cursor: pointer; }
 .preset-group button:hover, .add-text-button:hover { border-color: #b6acef; color: var(--violet); }
+.preset-group button:disabled { cursor: not-allowed; opacity: .38; }
 .finish-group { padding-left: 9px; border-left: 1px solid #ddd8e3; }
 .finish-group button { background: #f5f2ff; color: #5c4bd1; }
 .toolbar-end { display: flex; align-items: center; gap: 10px; margin-left: auto; }

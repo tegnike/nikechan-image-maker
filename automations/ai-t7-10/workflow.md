@@ -22,23 +22,25 @@
 
 1. `/Volumes/EXTERNAL_VOLUME` が実際にマウントされ、保存ルートと必要な参照画像が利用できることを確認する。不足時はローカルへ代替保存せず失敗終了する。
 2. Codex標準imagegenスキルを完全に読み、内蔵`image_gen`を使う。1runにつき呼び出しは1回だけ。生成失敗時は再生成せず失敗終了する。
-3. `index.jsonl`のうち、下記13スロットのいずれかを持つ最終行から次のスロットを循環する。`theme-support-backfill`など手動補完行は素材履歴としては読むが、スケジューラの現在位置判定から除外する。
+3. `index.jsonl`のうち、下記28スロットのいずれかを持つ最終行から次のスロットを循環する。旧`theme-*-support`、`theme-support-backfill`など現行スロット外の行は素材履歴としては読むが、スケジューラの現在位置判定から除外する。
 
-`theme-a-background → theme-a-title → theme-a-support → theme-a-accent → theme-b-background → theme-b-title → theme-b-support → theme-b-accent → character-1 → theme-c-background → theme-c-title → theme-c-support → theme-c-accent → theme-a-background`
+`theme-a-background → theme-a-title → theme-a-title-asa → theme-a-title-katsu → theme-a-support-stream → theme-a-support-casual → theme-a-support-reading → theme-a-support-english → theme-a-accent → theme-b-background → theme-b-title → theme-b-title-asa → theme-b-title-katsu → theme-b-support-stream → theme-b-support-casual → theme-b-support-reading → theme-b-support-english → theme-b-accent → character-1 → theme-c-background → theme-c-title → theme-c-title-asa → theme-c-title-katsu → theme-c-support-stream → theme-c-support-casual → theme-c-support-reading → theme-c-support-english → theme-c-accent → theme-a-background`
 
-新スロットがなければ`theme-a-background`から始める。13runで4素材からなるテーマ3セットとキャラクター1点を作る。旧10スロット形式の最終行がある場合も、backgroundの次はtitle、titleの次はsupport、accentの次は次グループという新しい順序へ移行する。
+新スロットがなければ`theme-a-background`から始める。28runで9つの生成素材からなるテーマ3セットとキャラクター1点を作る。旧スロット形式の最終行がbackgroundならtitle、titleならtitle-asa、accentなら次グループへ進める。
 4. 途中runが失敗したら索引へ成功行を追記せず、次runで同じスロットを再開する。対応する前工程が索引にない場合、新しいテーマを捏造せず失敗終了する。
 
 ## テーマは一つのデザイン案件
 
-背景・「朝活」文字・補助文字・部分フレームを独立した素材として考えない。同じグループの4runは同じ`theme_id`、テーマ仕様、実生成画像を引き継ぐ。
+背景、結合版「朝活」、独立版「朝」、独立版「活」、4種類の補助文字、部分フレームを独立したデザインとしてばらばらに考えない。同じグループの9runは同じ`theme_id`、テーマ仕様、実生成画像を引き継ぐ。
 
 - `background`: Europe/Warsaw日時と英数字slugで新しい`theme_id`を作り、テーマの基準デザインとなる背景を生成する。
-- `title`: 同じグループの直前background行を索引から取得し、実背景PNGを参照画像にして、同じ世界観の「朝活」文字だけを生成する。
-- `support`: 同じグループの実背景PNGと実title PNGを両方参照し、指定された補助文字だけを同じ世界観の独立した透過PNGとして生成する。
-- `accent`: 同じグループの実背景PNG、実title PNG、実support PNGを参照し、同じ世界観の透過部分フレーム1点を生成する。成功後に4素材の合成を検査し、テーマを公開する。
+- `title`: 実背景PNGを参照し、結合版「朝活」を1枚の透過PNGとして生成する。切断元には使用しない。
+- `title-asa`: 実背景PNGと実title PNGを参照し、「朝」一文字だけの独立した透過PNGを生成する。
+- `title-katsu`: 実背景PNG、実title PNG、実title-asa PNGを参照し、「活」一文字だけの独立した透過PNGを生成する。
+- `support-stream/casual/reading/english`: 実背景PNGと実タイトル群を参照し、「配信」「するよ！」「あさかつ」「MORNING STREAM」をそれぞれ別の透過PNGとして1点ずつ生成する。
+- `accent`: 実背景PNG、選択レイアウトで使う実タイトルPNG、既定の実support PNGを参照し、同じ世界観の透過部分フレーム1点を生成する。成功後に9素材の存在と合成を検査し、テーマを公開する。
 
-これは一枚絵の機械的なピクセル分割ではない。最初の背景をデザインマスターとして、後続素材を実画像参照で派生させることで、分割後も色・形・質感を揃える。
+これは一枚絵の機械的なピクセル分割ではない。最初の背景をデザインマスターとして、後続素材を実画像参照で一つずつ生成することで、個別生成後も色・形・質感を揃える。
 
 ## 実在VTuberサムネイルの参照
 
@@ -65,7 +67,7 @@
 
 ## テーマ仕様
 
-background行のprompt記録と索引へ次を必ず保存し、titleとaccentへ一字一句引き継ぐ。
+background行のprompt記録と索引へ次を必ず保存し、title、title-asa、title-katsu、4種類のsupport、accentへ一字一句引き継ぐ。
 
 - `theme_id`, `theme_name`, `category="朝活"`, `mood`
 - `palette`: 正確なHEXを4〜5色
@@ -74,7 +76,7 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - `texture_language`: 最大2種
 - `title_treatment`
 - `title_layout`: `side-by-side`、`split-character`、`diagonal-impact`のいずれか
-- `support_copy`: `stream`、`casual`、`reading`、`english`のいずれか。順に生成文字「配信」、「するよ！」、「あさかつ」、「MORNING STREAM」を表す
+- `support_copy`: 初期表示する補助文字として`stream`、`casual`、`reading`、`english`のいずれか。4種類の画像自体は毎テーマすべて生成する
 - `support_copy_zone`: 補助コピーを置いて顔と主文字を塞がない領域
 - `gap_accent_mode`: `none`または`integrated-micro-motifs`。後者はforeground-accent内に統合する1〜3個の小さな非文字モチーフと位置
 - `accent_concept`: 部分フレームのモチーフ、`corner`または`top-bottom`、想定位置
@@ -89,11 +91,11 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 
 各テーマは、実例サムネイルの観察に基づいて次の主題構成を一つ選ぶ。完成テーマの直近テーマから`split-character → diagonal-impact → side-by-side → split-character`の順に主題構成を進め、同じ構成へ偏らせない。アプリでは主題構成と補助コピーを後から別々に変更できるため、組み合わせても破綻しない安全領域を設計する。
 
-- `split-character`: 「朝」と「活」を左右へ明確に分離し、中央へキャラクターを置く。title画像内でも二文字を接触・重複させず、中央に十分な透明間隔を設ける。
+- `split-character`: 独立生成した`title-asa`と`title-katsu`を左右へ置き、中央へキャラクターを置く。結合版「朝活」の画像を切断、クロップ、マスクして作ってはならない。
 - `diagonal-impact`: 「朝活」全体を斜めに大きく横切らせ、上下の空きを減らす。人物の顔を横切らない角度と領域を指定する。
 - `side-by-side`: 人物と「朝活」を左右へ置く。二文字だけで上下が空くため、`support_copy`を`none`にしてはならない。
 
-`support_copy`はtitle画像へ焼き込まず、独立した透過PNGとして生成する。完成テーマの直近テーマから`stream → casual → reading → english → stream`の順に進め、4種類を循環させる。新規テーマで`none`を選んではならない。`split-character`と`diagonal-impact`でも補助文字を併用し、主文字、人物の顔、補助文字が互いに重ならない安全領域を設計する。アプリの通常フォントによる補助コピーは、support画像を持たない旧テーマだけの互換用とする。
+補助文字4種類はすべてtitle画像へ焼き込まず、それぞれ独立した透過PNGとして生成する。`support_copy`は初期表示だけを決め、完成テーマの直近テーマから`stream → casual → reading → english → stream`の順に進める。新規テーマで`none`を選んではならない。アプリは生成済みPNGの表示を切り替えるだけとし、OSフォント、Webフォント、Canvas文字、SVG文字で代用してはならない。必要素材がない旧テーマでは補助文字を追加しない。
 
 ## 共通品質
 
@@ -120,26 +122,36 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - 生成対象は正確な二文字「朝活」だけ。別の文字、数字、英語、ロゴを入れない。
 - 同じ`theme_id`の実背景PNGをスタイル参照に使い、palette、shape language、texture language、title treatmentを一致させる。
 - 背景と無関係な汎用ステッカーにしない。多重アウトラインは禁止し、輪郭は原則1系統、必要でも2系統まで。
-- 二文字の大小差、重なり、分割、傾き、ベースライン、字間までテーマとして設計してよい。ただし最終的な可読文字は「朝活」だけにする。
-- `title_layout="split-character"`では「朝」を左、「活」を右に置き、両者の間に画像幅の12%以上の完全な空白列を作る。文字同士、輪郭、影、装飾を中央で接続しない。アプリが中央の透明谷で安全に二分割できることを確認する。
+- 二文字の大小差、重なり、傾き、ベースライン、字間までテーマとして設計してよい。ただし最終的な可読文字は「朝活」だけにする。この画像を文字単位に切断できることは品質条件に含めず、後工程でも絶対に切断しない。
+- `title_layout="split-character"`でも、このスロットは結合版「朝活」を生成する。分割配置には後続の独立生成`title-asa`と`title-katsu`だけを使う。
 - `title_layout="diagonal-impact"`では、アプリでさらに斜め配置しても破綻しない横長の一体ロゴにする。上下へ大きな飾りを足して透明余白を増やさない。
 - `title_layout="side-by-side"`では、`support_copy_zone`を塞がない。補助コピーそのものをtitle画像へ入れない。
 - 1画像につきロゴ1点。完全に均一な`#00ff00`背景、影・床・反射なし、周囲に余白、ロゴ内に`#00ff00`を使わないと明記する。
 - 欠落、重複、誤字、別字、判読不能、指定外文字があれば採用しない。
 
+## title-asa / title-katsu
+
+- `title-asa`は正確な一文字「朝」だけ、`title-katsu`は正確な一文字「活」だけを生成する。二文字を一枚に生成してから切る方法、結合版titleをクロップする方法、マスクで片方を隠す方法は禁止する。
+- `title-asa`は同じテーマの実背景PNGと実title PNGを参照する。`title-katsu`はさらに実title-asa PNGも参照し、両文字の文字面、筆致、輪郭の太さ、影の方向、装飾密度、可視サイズを揃える。
+- 一文字ごとに独立した完成ロゴとして中央へ置く。輪郭、影、テーマ装飾を含む全不透明ピクセルを画像内に収め、切断を前提にしたはみ出しや接続線を作らない。
+- 生成対象以外の漢字、仮名、英字、数字、ロゴ、補助コピーを入れない。`title-asa`に「活」、`title-katsu`に「朝」を含めない。
+- 完全に均一な`#00ff00`背景、影・床・反射なし、周囲に適度な余白、ロゴ内に`#00ff00`を使わないと明記する。
+- 透過後に各PNGを別々に`view_image`し、指定一文字だけが正しく読めること、両方を並べたときに同じシリーズとして見えることを確認する。
+- prompt記録と索引へ`text_verbatim="朝"|"活"`、`title_part="asa"|"katsu"`を保存する。
+
 ## support
 
-- 同じ`theme_id`の実背景PNGと実title PNGを両方スタイル参照に使い、palette、shape language、texture language、title treatmentを一致させる。
-- 生成対象は`support_copy`に対応する次の文字列1点だけとする。`stream="配信"`、`casual="するよ！"`、`reading="あさかつ"`、`english="MORNING STREAM"`。別の文字、朝活、数字、ロゴ、アイコンを入れない。
+- 各supportスロットは同じ`theme_id`の実背景PNG、実title PNG、実title-asa PNG、実title-katsu PNGをスタイル参照に使い、palette、shape language、texture language、title treatmentを一致させる。
+- 生成対象はスロットに対応する文字列1点だけとする。`support-stream="配信"`、`support-casual="するよ！"`、`support-reading="あさかつ"`、`support-english="MORNING STREAM"`。別の文字、朝活、数字、ロゴ、アイコンを入れない。
 - 主題「朝活」より小さく、しかし160px幅のサムネイルでも補助情報として読める太い字形にする。主題と同じ輪郭・影・質感を使いながら、主題より視覚的に一段弱くする。
 - `support_copy_zone`の縦横比に合う横長ロゴ1点として作る。文字の上下へ大きな飾りを足して余白を増やさない。テーマ連動モチーフが必要でも1〜2個の小さな非文字装飾だけにする。
 - 1画像につき補助文字ロゴ1点。完全に均一な`#00ff00`背景、影・床・反射なし、周囲に適度な余白、ロゴ内に`#00ff00`を使わないと明記する。
 - 透過後に、可視ピクセルの外接矩形に対する上下の透明余白が各15%以下であること、指定文字列だけが正しく読めることを確認する。欠落、重複、誤字、指定外文字があれば採用しない。
-- prompt記録と索引へ`support_copy`と、実際に生成した文字列を`support_text_verbatim`として保存する。
+- prompt記録と索引へ`support_variant="stream"|"casual"|"reading"|"english"`と、実際に生成した文字列を`support_text_verbatim`として保存する。
 
 ## accent
 
-- 同じ`theme_id`の実背景PNG、透過title PNG、透過support PNGを参照画像に使う。
+- 同じ`theme_id`の実背景PNG、初期レイアウトで実際に使う透過title PNG、`support_copy`で初期表示する透過support PNGを参照画像に使う。`split-character`なら結合版titleではなく実title-asaと実title-katsuを使う。
 - 生成物は毎回必ず`role="foreground-accent"`の部分フレーム1点とする。`role="prop"`や独立した小物は生成しない。
 - 1280x720の完成キャンバス全体にそのまま重ねられる16:9オーバーレイとして生成する。`default_placement`は常に`{"x":0,"y":0,"width":1280}`とする。
 - フレーム形式はテーマごとに次のどちらか一つを選ぶ。
@@ -175,7 +187,7 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 
 ## 透過と頭部アンカー
 
-- character、title、support、accentは生成元を`tmp/imagegen/`へコピーし、`remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`を1回実行する。
+- character、title、title-asa、title-katsu、4種類のsupport、accentは生成元を`tmp/imagegen/`へコピーし、`remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`を1回実行する。
 - alpha channel、透明な四隅、欠損なし、緑縁なしを確認する。細い緑縁だけなら`--edge-contract 1`を加えた透過処理だけを1回再実行してよい。欠損時は採用しない。
 - characterは透過PNGを`view_image`で確認し、頭蓋・前髪・側頭部の髪を含む主な頭部領域（首、手、長いポニーテールは除外）の中心と外接矩形を決める。
 - `centerX`, `centerY`, `width`, `height`を元PNG全体に対する0〜1で`head-anchors.json`へ原子的に保存する。`sourceWidth`, `sourceHeight`, `method="manual-reviewed"`, `confidence`も記録する。
@@ -188,7 +200,8 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
 - Europe/Warsaw日時のbasenameでカテゴリ別PNGと対応する`.prompt.md`を保存する。
 - prompt記録にはasset_type、generation_slot、theme_id、テーマ仕様、最終プロンプト全文、参照画像、参照動画の全メタデータと分析、透過処理、dimensions、alpha、sha256、head_anchor、accent metadataを残す。
 - PNGとprompt記録を確認してから`index.jsonl`へ既存スキーマの全フィールドを1行JSONで追記する。該当しない値はnull。assetとpromptは保存ルートからの相対パスにする。
-- accent成功後、同じtheme_idのbackground、title、support、accentの存在、sha256、画像内容を確認する。1280x720で4素材を機械的に合成し、`view_image`で色・形・質感の一体感、人物・主文字・補助文字の安全領域、二文字タイトル上下の空きの解消、小窓不在を確認する。
+- accent成功後、同じtheme_idのbackground、title、title-asa、title-katsu、support 4種類、accentの計9素材について存在、sha256、画像内容を確認する。結合版titleをピクセル分割・クロップして作った素材が一つもないことも確認する。
+- 1280x720で次の3プレビューを機械的に合成し、すべて`view_image`する。(1) 結合版「朝活」＋初期support、(2) 独立版「朝」｜人物安全域｜独立版「活」＋初期support、(3) 斜め配置した結合版「朝活」＋別のsupport。色・形・質感の一体感、人物・主文字・補助文字の安全領域、二文字タイトル上下の空きの解消、小窓不在を確認する。
 - 合格時だけ`theme-kits.json`へ既存テーマを保持して次を原子的に追加する。
 - `theme-kits.json`のルート形式は必ず`{"version":1,"updatedAt":"ISO-8601","themes":[...]}`のJSONオブジェクトを維持する。ルートを配列にしてはならない。既存オブジェクトを読み、`manifest["themes"]`配列へテーマオブジェクトを追加または同じidで置換する。
 - 書き込み前に元ファイルを同じディレクトリの一時バックアップへコピーする。書き込み後に、ルートがobject、`version===1`、`themes`がarrayであることを再読込して検証する。検証失敗時は即座に元ファイルへ戻して失敗通知する。
@@ -202,10 +215,19 @@ background行のprompt記録と索引へ次を必ず保存し、titleとaccent�
   "palette": ["#..."],
   "shapeLanguage": "...",
   "titleLayout": "side-by-side|split-character|diagonal-impact",
-  "supportCopy": "none|stream|casual|reading|english",
+  "supportCopy": "stream|casual|reading|english",
   "backgroundAssetPath": "backgrounds/...png",
   "titleAssetPath": "texts/...png",
-  "supportAssetPath": "texts/...png",
+  "splitTitleAssetPaths": {
+    "asa": "texts/...png",
+    "katsu": "texts/...png"
+  },
+  "supportAssetPaths": {
+    "stream": "texts/...png",
+    "casual": "texts/...png",
+    "reading": "texts/...png",
+    "english": "texts/...png"
+  },
   "accentAssets": [
     {
       "assetPath": "decorations/...png",

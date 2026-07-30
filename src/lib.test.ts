@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeThumbnail,
   applyFinishPreset,
-  applySupportCopy,
+  applyGeneratedSupportCopy,
   applyThumbnailTemplate,
   applyTitleLayout,
   cloneLayer,
@@ -18,12 +18,11 @@ import {
 } from "./lib";
 
 describe("thumbnail project model", () => {
-  it("creates a 1280x720 project with editable title text", () => {
+  it("creates a blank 1280x720 project without synthetic text", () => {
     const project = createEmptyProject();
     expect(project.width).toBe(1280);
     expect(project.height).toBe(720);
-    expect(project.layers).toHaveLength(1);
-    expect(project.layers[0]).toMatchObject({ kind: "text", text: "朝活" });
+    expect(project.layers).toHaveLength(0);
   });
 
   it("duplicates a layer without reusing its identity", () => {
@@ -39,6 +38,22 @@ describe("thumbnail project model", () => {
     const sanitized = sanitizeProject({ ...project, width: 1280, height: 720 });
     expect(sanitized).toMatchObject({ version: 1, width: 1280, height: 720 });
     expect(new Date(sanitized.updatedAt).getTime()).not.toBeNaN();
+  });
+
+  it("removes legacy title slices and synthetic text instead of displaying substitutes", () => {
+    const project = createEmptyProject();
+    const legacySlice = {
+      ...createTitleLayer(),
+      id: "legacy-slice",
+      kind: "image" as const,
+      src: "/cropped-title.png",
+      assetType: "texts" as const,
+      compositionRole: "title-part",
+    };
+    const syntheticText = createTitleLayer();
+    const sanitized = sanitizeProject({ ...project, layers: [syntheticText, legacySlice as never] });
+
+    expect(sanitized.layers).toEqual([]);
   });
 
   it("reorders layers without mutating the source", () => {
@@ -118,8 +133,8 @@ describe("thumbnail project model", () => {
       nextTitle,
     );
 
-    expect(replaced.map((layer) => layer.id)).toEqual(["next-background", base.id, "character", "next-prop", "next-title"]);
-    expect(replaced.find((layer) => layer.id === base.id)?.visible).toBe(false);
+    expect(replaced.map((layer) => layer.id)).toEqual(["next-background", "character", "next-prop", "next-title"]);
+    expect(replaced.some((layer) => layer.kind === "text")).toBe(false);
   });
 
   it("moves generated title images with a completed template", () => {
@@ -149,7 +164,7 @@ describe("thumbnail project model", () => {
     expect(Math.abs(arrangedTitle.width * arrangedTitle.scaleX)).toBeGreaterThan(600);
   });
 
-  it("splits the generated 朝活 image around its measured gap and centers the character", () => {
+  it("uses separately generated 朝 and 活 images without cropping the 朝活 image", () => {
     const base = createTitleLayer();
     const title = {
       ...base,
@@ -160,11 +175,24 @@ describe("thumbnail project model", () => {
       compositionRole: "main-title" as const,
       width: 1000,
       height: 400,
-      cropX: 80,
-      cropY: 20,
-      cropWidth: 1000,
-      cropHeight: 400,
-      titleSplitRatio: 0.44,
+    };
+    const asa = {
+      ...title,
+      id: "generated-asa",
+      src: "/asa.png",
+      compositionRole: "title-part-asa" as const,
+      width: 420,
+      height: 500,
+      visible: false,
+    };
+    const katsu = {
+      ...title,
+      id: "generated-katsu",
+      src: "/katsu.png",
+      compositionRole: "title-part-katsu" as const,
+      width: 460,
+      height: 500,
+      visible: false,
     };
     const character = {
       ...title,
@@ -183,22 +211,33 @@ describe("thumbnail project model", () => {
       },
     };
 
-    const arranged = applyTitleLayout([character, title], "split-character");
-    const parts = arranged.filter((layer) => layer.compositionRole === "title-part");
+    const arranged = applyTitleLayout([character, title, asa, katsu], "split-character");
+    const parts = arranged.filter((layer) => layer.compositionRole === "title-part-asa" || layer.compositionRole === "title-part-katsu");
     const nextCharacter = arranged.find((layer) => layer.id === character.id)!;
 
     expect(arranged.find((layer) => layer.id === title.id)?.visible).toBe(false);
     expect(parts).toHaveLength(2);
-    expect(parts[0]).toMatchObject({ cropX: 80, cropWidth: 440 });
-    expect(parts[1]).toMatchObject({ cropX: 520, cropWidth: 560 });
+    expect(parts[0]).toMatchObject({ src: "/asa.png", visible: true });
+    expect(parts[1]).toMatchObject({ src: "/katsu.png", visible: true });
+    expect("cropWidth" in parts[0]).toBe(false);
+    expect("cropWidth" in parts[1]).toBe(false);
     expect(nextCharacter.x + nextCharacter.width * nextCharacter.scaleX * character.headAnchor.centerX).toBeCloseTo(640);
 
     const restored = applyTitleLayout(arranged, "side-by-side");
-    expect(restored.some((layer) => layer.compositionRole === "title-part")).toBe(false);
+    expect(restored.filter((layer) => layer.compositionRole === "title-part-asa" || layer.compositionRole === "title-part-katsu").every((layer) => !layer.visible)).toBe(true);
     expect(restored.find((layer) => layer.id === title.id)?.visible).toBe(true);
   });
 
-  it("combines a title layout with one replaceable theme-colored support copy", () => {
+  it("refuses split layout when separately generated character assets are absent", () => {
+    const base = createTitleLayer();
+    const title = { ...base, kind: "image" as const, src: "/title.png", assetType: "texts" as const, compositionRole: "main-title" as const };
+    const arranged = applyTitleLayout([title], "split-character");
+
+    expect(arranged).toHaveLength(1);
+    expect(arranged[0]).toMatchObject({ src: "/title.png", visible: true, compositionRole: "main-title" });
+  });
+
+  it("switches only between generated support-copy images", () => {
     const base = createTitleLayer();
     const title = {
       ...base,
@@ -210,14 +249,17 @@ describe("thumbnail project model", () => {
       width: 900,
       height: 420,
     };
-    const diagonal = applyTitleLayout([title], "diagonal-impact");
-    const withReading = applySupportCopy(diagonal, "reading", ["#f8fff0", "#173b36", "#d95c9f"]);
-    const withEnglish = applySupportCopy(withReading, "english", ["#f8fff0", "#173b36", "#d95c9f"]);
+    const reading = { ...title, id: "reading", src: "/reading.png", compositionRole: "support-copy" as const, supportCopyPreset: "reading" as const, visible: false };
+    const english = { ...title, id: "english", src: "/english.png", compositionRole: "support-copy" as const, supportCopyPreset: "english" as const, visible: false };
+    const diagonal = applyTitleLayout([title, reading, english], "diagonal-impact");
+    const withReading = applyGeneratedSupportCopy(diagonal, "reading");
+    const withEnglish = applyGeneratedSupportCopy(withReading, "english");
     const support = withEnglish.filter((layer) => layer.compositionRole === "support-copy");
 
     expect(diagonal[0].rotation).toBe(-12);
-    expect(support).toHaveLength(1);
-    expect(support[0]).toMatchObject({ kind: "text", text: "MORNING STREAM", fill: "#f8fff0", stroke: "#173b36", rotation: -8 });
+    expect(support).toHaveLength(2);
+    expect(support.find((layer) => layer.id === reading.id)).toMatchObject({ kind: "image", visible: false });
+    expect(support.find((layer) => layer.id === english.id)).toMatchObject({ kind: "image", visible: true, src: "/english.png", rotation: -8 });
   });
 
   it("positions a generated support-copy image with the selected title layout", () => {

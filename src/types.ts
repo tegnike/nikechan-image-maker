@@ -30,7 +30,8 @@ export type ThemeAccentRole = "prop" | "foreground-accent";
 
 export type TitleLayoutPreset = "side-by-side" | "split-character" | "diagonal-impact";
 export type SupportCopyPreset = "none" | "stream" | "casual" | "reading" | "english";
-export type CompositionRole = "main-title" | "title-part" | "support-copy";
+export type GeneratedSupportCopyPreset = Exclude<SupportCopyPreset, "none">;
+export type CompositionRole = "main-title" | "title-part-asa" | "title-part-katsu" | "support-copy";
 
 export type ThemeAccent = {
   asset: Asset;
@@ -53,7 +54,11 @@ export type ThemeKit = {
   supportCopy?: SupportCopyPreset;
   background: Asset;
   title: Asset;
-  support?: Asset;
+  splitTitle?: {
+    asa: Asset;
+    katsu: Asset;
+  };
+  supports: Partial<Record<GeneratedSupportCopyPreset, Asset>>;
   accents: ThemeAccent[];
   createdAt: string;
 };
@@ -79,10 +84,10 @@ export type ImageLayer = LayerBase & {
   src: string;
   assetPath?: string;
   themeId?: string;
-  themeRole?: "background" | "title" | "support-copy" | ThemeAccentRole;
+  themeRole?: "background" | "title" | "title-part-asa" | "title-part-katsu" | "support-copy" | ThemeAccentRole;
   assetType: AssetType;
   headAnchor?: HeadAnchor;
-  titleSplitRatio?: number;
+  supportCopyPreset?: GeneratedSupportCopyPreset;
   cropX?: number;
   cropY?: number;
   cropWidth?: number;
@@ -116,7 +121,6 @@ export type TextLayer = LayerBase & {
   shadowOffsetX: number;
   shadowOffsetY: number;
   lineHeight: number;
-  supportCopyPreset?: Exclude<SupportCopyPreset, "none">;
 };
 
 export type StudioLayer = ImageLayer | TextLayer;

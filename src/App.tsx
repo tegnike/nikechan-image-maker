@@ -23,18 +23,17 @@ import {
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Asset, AssetType, Health, ProjectSummary, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
+import type { Asset, AssetType, GeneratedSupportCopyPreset, Health, ProjectSummary, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
   analyzeThumbnail,
   applyFinishPreset,
-  applySupportCopy,
+  applyGeneratedSupportCopy,
   applyThumbnailTemplate,
   applyTitleLayout,
   cloneLayer,
   createEmptyProject,
   createId,
-  createTitleLayer,
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
@@ -103,35 +102,6 @@ function visibleImageBounds(image: HTMLImageElement) {
   return { x, y, width: right - x, height: bottom - y };
 }
 
-function titleSplitRatio(image: HTMLImageElement, bounds: { x: number; y: number; width: number; height: number }) {
-  const sampleWidth = Math.max(2, Math.min(512, Math.round(bounds.width)));
-  const sampleHeight = Math.max(2, Math.min(512, Math.round(bounds.height * sampleWidth / bounds.width)));
-  const canvas = document.createElement("canvas");
-  canvas.width = sampleWidth;
-  canvas.height = sampleHeight;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return 0.5;
-  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, sampleWidth, sampleHeight);
-  const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
-  const start = Math.floor(sampleWidth * 0.32);
-  const end = Math.ceil(sampleWidth * 0.68);
-  let bestColumn = Math.floor(sampleWidth / 2);
-  let bestScore = Number.POSITIVE_INFINITY;
-  for (let x = start; x <= end; x += 1) {
-    let opaque = 0;
-    for (let y = 0; y < sampleHeight; y += 1) {
-      if (pixels[(y * sampleWidth + x) * 4 + 3] > 12) opaque += 1;
-    }
-    const centerPenalty = Math.abs(x / sampleWidth - 0.5) * sampleHeight * 0.08;
-    const score = opaque + centerPenalty;
-    if (score < bestScore) {
-      bestScore = score;
-      bestColumn = x;
-    }
-  }
-  return Math.max(0.32, Math.min(0.68, bestColumn / sampleWidth));
-}
-
 const titleLayoutLabels: Record<TitleLayoutPreset, string> = {
   "side-by-side": "人物と左右",
   "split-character": "朝｜人物｜活",
@@ -145,6 +115,12 @@ const supportCopyLabels: Record<SupportCopyPreset, string> = {
   reading: "＋あさかつ",
   english: "＋MORNING STREAM",
 };
+
+function defaultThemeSupport(theme: ThemeKit) {
+  return theme.supportCopy && theme.supportCopy !== "none"
+    ? theme.supports[theme.supportCopy]
+    : undefined;
+}
 
 function ImageNode({
   layer,
@@ -435,6 +411,15 @@ function App() {
     () => project.layers.find((layer) => layer.id === selectedId) || null,
     [project.layers, selectedId],
   );
+  const hasGeneratedSplitTitle = useMemo(() => (
+    project.layers.some((layer) => layer.compositionRole === "title-part-asa")
+    && project.layers.some((layer) => layer.compositionRole === "title-part-katsu")
+  ), [project.layers]);
+  const generatedSupportPresets = useMemo(() => new Set(project.layers.flatMap((layer) => (
+    layer.kind === "image" && layer.compositionRole === "support-copy" && layer.supportCopyPreset
+      ? [layer.supportCopyPreset]
+      : []
+  ))), [project.layers]);
   const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
 
   const refreshAssets = useCallback(async (type: AssetType) => {
@@ -647,7 +632,6 @@ function App() {
         headAnchor: asset.headAnchor
           ? remapHeadAnchorToCrop(asset.headAnchor, image.naturalWidth, image.naturalHeight, bounds)
           : undefined,
-        titleSplitRatio: asset.type === "texts" ? titleSplitRatio(image, bounds) : undefined,
         x,
         y,
         width: bounds.width,
@@ -686,10 +670,17 @@ function App() {
     setStatus(`${theme.name} を組み立てています…`);
     try {
       const themeAccents = theme.accents || [];
-      const [backgroundLayer, titleLayer, supportLayer, accentLayers] = await Promise.all([
+      const supportEntries = Object.entries(theme.supports || {}) as [GeneratedSupportCopyPreset, Asset][];
+      const [backgroundLayer, titleLayer, titlePartLayers, supportLayers, accentLayers] = await Promise.all([
         buildAssetLayer(theme.background),
         buildAssetLayer(theme.title),
-        theme.support ? buildAssetLayer(theme.support) : Promise.resolve(null),
+        theme.splitTitle
+          ? Promise.all([
+            buildAssetLayer(theme.splitTitle.asa),
+            buildAssetLayer(theme.splitTitle.katsu),
+          ])
+          : Promise.resolve([]),
+        Promise.all(supportEntries.map(async ([preset, asset]) => ({ preset, layer: await buildAssetLayer(asset) }))),
         Promise.all(themeAccents.map(async (accent: ThemeAccent) => {
           const layer = await buildAssetLayer(accent.asset);
           if (layer.kind !== "image") return layer;
@@ -709,36 +700,38 @@ function App() {
       if (backgroundLayer.kind !== "image" || titleLayer.kind !== "image") throw new Error("Invalid theme assets");
       const background = { ...backgroundLayer, themeRole: "background" as const };
       const title = { ...titleLayer, themeRole: "title" as const, compositionRole: "main-title" as const };
-      const support = supportLayer?.kind === "image"
-        ? { ...supportLayer, themeRole: "support-copy" as const, compositionRole: "support-copy" as const }
-        : undefined;
+      const splitParts = titlePartLayers.flatMap((layer, index) => layer.kind === "image" ? [{
+        ...layer,
+        name: `${index === 0 ? "朝" : "活"} · 独立生成タイトル`,
+        themeRole: index === 0 ? "title-part-asa" as const : "title-part-katsu" as const,
+        compositionRole: index === 0 ? "title-part-asa" as const : "title-part-katsu" as const,
+        visible: false,
+      }] : []);
+      const generatedSupports = supportLayers.flatMap(({ preset, layer }) => layer.kind === "image" ? [{
+        ...layer,
+        name: `${supportCopyLabels[preset]} · 生成補助文字`,
+        themeRole: "support-copy" as const,
+        compositionRole: "support-copy" as const,
+        supportCopyPreset: preset,
+        visible: false,
+      }] : []);
       commitProject((current) => {
-        const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title, support);
+        const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title, splitParts, generatedSupports);
         const templated = applyThumbnailTemplate(assembled, "character-right");
         const laidOut = applyTitleLayout(templated, theme.titleLayout || "side-by-side");
         return {
           ...current,
-          layers: support
-            ? laidOut
-            : applySupportCopy(laidOut, theme.supportCopy || "none", theme.palette),
+          layers: applyGeneratedSupportCopy(laidOut, theme.supportCopy || "none"),
         };
       });
       setSelectedId(theme.titleLayout === "split-character" ? null : title.id);
-      const supportLabel = support ? "・補助文字画像" : theme.supportCopy && theme.supportCopy !== "none" ? "・補助文字" : "";
+      const splitLabel = splitParts.length === 2 ? "・独立文字2点" : "";
+      const supportLabel = generatedSupports.length ? `・生成補助文字${generatedSupports.length}点` : "";
       const accentLabel = accentLayers.length ? `・アクセント${accentLayers.length}点` : "";
-      setStatus(`${theme.name} を背景・文字${supportLabel}${accentLabel}セットで追加しました`);
+      setStatus(`${theme.name} を背景・文字${splitLabel}${supportLabel}${accentLabel}セットで追加しました`);
     } catch {
       setStatus(`${theme.name} を読み込めませんでした`);
     }
-  };
-
-  const addText = () => {
-    const layer = createTitleLayer();
-    layer.name = project.layers.some((item) => item.kind === "text") ? "テキスト" : "メインタイトル";
-    layer.text = project.layers.some((item) => item.kind === "text") ? "新しい文字" : "朝活";
-    layer.y = 160 + project.layers.filter((item) => item.kind === "text").length * 50;
-    commitProject((current) => ({ ...current, layers: [...current.layers, layer] }));
-    setSelectedId(layer.id);
   };
 
   const applyPreset = (preset: ThumbnailTemplate) => {
@@ -757,21 +750,25 @@ function App() {
   };
 
   const applyTitleComposition = (preset: TitleLayoutPreset) => {
+    const hasAsa = project.layers.some((layer) => layer.compositionRole === "title-part-asa");
+    const hasKatsu = project.layers.some((layer) => layer.compositionRole === "title-part-katsu");
+    if (preset === "split-character" && (!hasAsa || !hasKatsu)) {
+      setStatus("独立生成された「朝」と「活」があるテーマでのみ分割配置できます");
+      return;
+    }
     commitProject((current) => ({ ...current, layers: applyTitleLayout(current.layers, preset) }));
     setSelectedId(null);
     setStatus(`${titleLayoutLabels[preset]}の主題レイアウトを適用しました`);
   };
 
   const applySupport = (preset: SupportCopyPreset) => {
-    commitProject((current) => {
-      const themeId = current.layers.find(
-        (layer): layer is Extract<StudioLayer, { kind: "image" }> => (
-          layer.kind === "image" && layer.compositionRole === "main-title"
-        ),
-      )?.themeId;
-      const palette = themes.find((theme) => theme.id === themeId)?.palette || [];
-      return { ...current, layers: applySupportCopy(current.layers, preset, palette) };
-    });
+    if (preset !== "none" && !project.layers.some(
+      (layer) => layer.kind === "image" && layer.compositionRole === "support-copy" && layer.supportCopyPreset === preset,
+    )) {
+      setStatus(`${supportCopyLabels[preset]}の生成画像がこのテーマにありません`);
+      return;
+    }
+    commitProject((current) => ({ ...current, layers: applyGeneratedSupportCopy(current.layers, preset) }));
     setSelectedId(null);
     setStatus(`${supportCopyLabels[preset]}を適用しました`);
   };
@@ -952,7 +949,7 @@ function App() {
             <button className={assetType === "characters" ? "active" : ""} onClick={() => setAssetType("characters")}>キャラクター</button>
           </div>
           <div className="asset-tip">
-            {assetType === "themes" && "同じ世界観の背景・「朝活」・補助文字・角または上下の部分フレームをセットで追加します。"}
+            {assetType === "themes" && "文字を切断・フォント合成せず、生成済みの「朝活」・「朝」・「活」・補助文字を配置します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
           </div>
           {assetType === "themes" ? (
@@ -974,16 +971,23 @@ function App() {
                         }}
                       />
                     ))}
-                    <img className="theme-title" src={theme.title.url} alt="" />
-                    {theme.support ? <img className="theme-support" src={theme.support.url} alt="" /> : null}
+                    {theme.titleLayout === "split-character" && theme.splitTitle ? (
+                      <>
+                        <img className="theme-title-part theme-title-asa" src={theme.splitTitle.asa.url} alt="" />
+                        <img className="theme-title-part theme-title-katsu" src={theme.splitTitle.katsu.url} alt="" />
+                      </>
+                    ) : <img className="theme-title" src={theme.title.url} alt="" />}
+                    {defaultThemeSupport(theme) ? <img className="theme-support" src={defaultThemeSupport(theme)?.url} alt="" /> : null}
                   </div>
                   <div className="theme-info">
                     <strong>{theme.name}</strong>
-                    <span>{theme.category} · 背景＋文字{theme.support ? "＋補助文字画像" : ""}{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
+                    <span>{theme.category} · 背景＋生成文字{theme.splitTitle ? "3点" : "1点"}＋生成補助{Object.keys(theme.supports).length}点{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
                       ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
                       : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
-                    {theme.titleLayout || theme.supportCopy ? (
-                      <span>{titleLayoutLabels[theme.titleLayout || "side-by-side"]} · {supportCopyLabels[theme.supportCopy || "none"]}</span>
+                    {theme.titleLayout || defaultThemeSupport(theme) ? (
+                      <span>{titleLayoutLabels[theme.titleLayout || "side-by-side"]} · {defaultThemeSupport(theme)
+                        ? supportCopyLabels[theme.supportCopy || "none"]
+                        : "補助画像なし"}</span>
                     ) : null}
                     <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
                   </div>
@@ -1019,15 +1023,19 @@ function App() {
             </div>
             <div className="preset-group finish-group">
               <span>主題</span>
-              <button onClick={() => applyTitleComposition("split-character")}>朝｜人物｜活</button>
+              <button
+                disabled={!hasGeneratedSplitTitle}
+                title={hasGeneratedSplitTitle ? "独立生成した朝・活を配置" : "独立生成した朝・活が必要です"}
+                onClick={() => applyTitleComposition("split-character")}
+              >朝｜人物｜活</button>
               <button onClick={() => applyTitleComposition("diagonal-impact")}>斜め大文字</button>
             </div>
             <div className="preset-group finish-group">
               <span>補助</span>
-              <button onClick={() => applySupport("stream")}>＋配信</button>
-              <button onClick={() => applySupport("casual")}>＋するよ！</button>
-              <button onClick={() => applySupport("reading")}>＋あさかつ</button>
-              <button onClick={() => applySupport("english")}>＋英字</button>
+              <button disabled={!generatedSupportPresets.has("stream")} onClick={() => applySupport("stream")}>＋配信</button>
+              <button disabled={!generatedSupportPresets.has("casual")} onClick={() => applySupport("casual")}>＋するよ！</button>
+              <button disabled={!generatedSupportPresets.has("reading")} onClick={() => applySupport("reading")}>＋あさかつ</button>
+              <button disabled={!generatedSupportPresets.has("english")} onClick={() => applySupport("english")}>＋英字</button>
               <button onClick={() => applySupport("none")}>なし</button>
             </div>
             <div className="preset-group finish-group">
@@ -1040,7 +1048,6 @@ function App() {
                 <input type="checkbox" checked={showSafeArea} onChange={(event) => setShowSafeArea(event.target.checked)} />
                 セーフエリア
               </label>
-              <button className="add-text-button" onClick={addText}><Type size={16} />文字を追加</button>
             </div>
           </div>
           <div className="canvas-viewport">

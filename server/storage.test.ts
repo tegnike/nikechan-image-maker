@@ -37,7 +37,7 @@ describe("thumbnail library storage", () => {
     const listed = await storage.listProjects();
     const loaded = await storage.loadProject(saved.id);
     expect(listed).toContainEqual(expect.objectContaining({ id: saved.id, name: "朝活テスト" }));
-    expect(loaded.layers[0]).toMatchObject({ kind: "text", text: "朝活" });
+    expect(loaded.layers).toEqual([]);
   });
 
   it("keeps Japanese names readable and strips path separators", () => {
@@ -116,7 +116,16 @@ describe("thumbnail library storage", () => {
         supportCopy: "reading",
         backgroundAssetPath: "backgrounds/2026/07/29/background.png",
         titleAssetPath: "texts/2026/07/29/title.png",
-        supportAssetPath: "texts/2026/07/29/support.png",
+        splitTitleAssetPaths: {
+          asa: "texts/2026/07/29/asa.png",
+          katsu: "texts/2026/07/29/katsu.png",
+        },
+        supportAssetPaths: {
+          stream: "texts/2026/07/29/stream.png",
+          casual: "texts/2026/07/29/casual.png",
+          reading: "texts/2026/07/29/reading.png",
+          english: "texts/2026/07/29/english.png",
+        },
         accentAssets: [{
           assetPath: "decorations/2026/07/29/mug.png",
           role: "prop",
@@ -134,7 +143,16 @@ describe("thumbnail library storage", () => {
       supportCopy: "reading",
       background: { type: "backgrounds", themeId: "theme-test" },
       title: { type: "texts", themeId: "theme-test" },
-      support: { type: "texts", themeId: "theme-test", assetPath: "texts/2026/07/29/support.png" },
+      splitTitle: {
+        asa: { type: "texts", themeId: "theme-test", assetPath: "texts/2026/07/29/asa.png" },
+        katsu: { type: "texts", themeId: "theme-test", assetPath: "texts/2026/07/29/katsu.png" },
+      },
+      supports: {
+        stream: { assetPath: "texts/2026/07/29/stream.png" },
+        casual: { assetPath: "texts/2026/07/29/casual.png" },
+        reading: { assetPath: "texts/2026/07/29/reading.png" },
+        english: { assetPath: "texts/2026/07/29/english.png" },
+      },
       accents: [{
         asset: { type: "decorations", themeId: "theme-test" },
         role: "prop",
@@ -162,6 +180,34 @@ describe("thumbnail library storage", () => {
 
     const themes = await storage.listThemeKits();
     expect(themes).toHaveLength(1);
-    expect(themes[0]).toMatchObject({ id: "recovered-theme", accents: [] });
+    expect(themes[0]).toMatchObject({ id: "recovered-theme", supports: {}, accents: [] });
+  });
+
+  it("keeps a legacy generated support image but never fakes missing split title assets", async () => {
+    await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      themes: [{
+        id: "legacy-theme",
+        name: "Legacy Theme",
+        category: "朝活",
+        concept: "legacy support migration",
+        palette: ["#112233"],
+        shapeLanguage: "curves",
+        titleLayout: "split-character",
+        supportCopy: "casual",
+        backgroundAssetPath: "backgrounds/background.png",
+        titleAssetPath: "texts/title.png",
+        supportAssetPath: "texts/support.png",
+        createdAt: new Date().toISOString(),
+      }],
+    }));
+
+    const themes = await storage.listThemeKits();
+    expect(themes[0]).toMatchObject({
+      titleLayout: "side-by-side",
+      splitTitle: undefined,
+      supports: { casual: { assetPath: "texts/support.png" } },
+    });
   });
 });

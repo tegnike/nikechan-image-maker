@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Asset, AssetType, HeadAnchor, ImageLayer, ProjectSummary, SupportCopyPreset, ThemeAccentRole, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "../src/types";
+import type { Asset, AssetType, GeneratedSupportCopyPreset, HeadAnchor, ImageLayer, ProjectSummary, SupportCopyPreset, ThemeAccentRole, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "../src/types";
 import { remapHeadAnchorToCrop } from "../src/lib";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
@@ -221,15 +221,18 @@ type ThemeAccentRecord = {
   placement: { x: number; y: number; width: number };
 };
 
-type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "support" | "accents"> & {
+type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "splitTitle" | "supports" | "accents"> & {
   backgroundAssetPath: string;
   titleAssetPath: string;
+  splitTitleAssetPaths?: { asa: string; katsu: string };
+  supportAssetPaths?: Partial<Record<GeneratedSupportCopyPreset, string>>;
   supportAssetPath?: string;
   accentAssets?: ThemeAccentRecord[];
 };
 
 const TITLE_LAYOUTS = new Set<TitleLayoutPreset>(["side-by-side", "split-character", "diagonal-impact"]);
 const SUPPORT_COPIES = new Set<SupportCopyPreset>(["none", "stream", "casual", "reading", "english"]);
+const GENERATED_SUPPORT_COPIES: GeneratedSupportCopyPreset[] = ["stream", "casual", "reading", "english"];
 
 function themeAsset(assetPath: string, type: AssetType, themeId: string, createdAt: string): Asset {
   const normalized = assetPath.replaceAll("\\", "/").replace(/^assets\//, "");
@@ -264,22 +267,38 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
           typeof item === "object" && item !== null && "id" in item
         ))
         : [];
-    return themes.map((theme) => ({
-      id: theme.id,
-      name: theme.name,
-      category: theme.category,
-      concept: theme.concept,
-      palette: theme.palette,
-      shapeLanguage: theme.shapeLanguage,
-      titleLayout: TITLE_LAYOUTS.has(theme.titleLayout as TitleLayoutPreset) ? theme.titleLayout : undefined,
-      supportCopy: SUPPORT_COPIES.has(theme.supportCopy as SupportCopyPreset) ? theme.supportCopy : undefined,
-      createdAt: theme.createdAt,
-      background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
-      title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),
-      support: theme.supportAssetPath
-        ? themeAsset(theme.supportAssetPath, "texts", theme.id, theme.createdAt)
-        : undefined,
-      accents: (theme.accentAssets || []).flatMap((accent) => {
+    return themes.map((theme) => {
+      const splitTitle = theme.splitTitleAssetPaths ? {
+        asa: themeAsset(theme.splitTitleAssetPaths.asa, "texts", theme.id, theme.createdAt),
+        katsu: themeAsset(theme.splitTitleAssetPaths.katsu, "texts", theme.id, theme.createdAt),
+      } : undefined;
+      const supportPaths = { ...(theme.supportAssetPaths || {}) };
+      if (
+        theme.supportAssetPath
+        && theme.supportCopy
+        && theme.supportCopy !== "none"
+        && !supportPaths[theme.supportCopy]
+      ) supportPaths[theme.supportCopy] = theme.supportAssetPath;
+      const supports = Object.fromEntries(GENERATED_SUPPORT_COPIES.flatMap((preset) => {
+        const assetPath = supportPaths[preset];
+        return assetPath ? [[preset, themeAsset(assetPath, "texts", theme.id, theme.createdAt)]] : [];
+      })) as ThemeKit["supports"];
+      const requestedLayout = TITLE_LAYOUTS.has(theme.titleLayout as TitleLayoutPreset) ? theme.titleLayout : undefined;
+      return {
+        id: theme.id,
+        name: theme.name,
+        category: theme.category,
+        concept: theme.concept,
+        palette: theme.palette,
+        shapeLanguage: theme.shapeLanguage,
+        titleLayout: requestedLayout === "split-character" && !splitTitle ? "side-by-side" : requestedLayout,
+        supportCopy: SUPPORT_COPIES.has(theme.supportCopy as SupportCopyPreset) ? theme.supportCopy : undefined,
+        createdAt: theme.createdAt,
+        background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
+        title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),
+        splitTitle,
+        supports,
+        accents: (theme.accentAssets || []).flatMap((accent) => {
         const placement = accent.placement;
         if (
           !["prop", "foreground-accent"].includes(accent.role)
@@ -296,8 +315,9 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
         } catch {
           return [];
         }
-      }),
-    }));
+        }),
+      };
+    });
   } catch {
     return [];
   }
