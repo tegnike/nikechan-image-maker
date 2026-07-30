@@ -11,6 +11,7 @@ export const LIBRARY_ROOT = path.resolve(
 export const ASSETS_ROOT = path.join(LIBRARY_ROOT, "assets");
 export const PROJECTS_ROOT = path.join(LIBRARY_ROOT, "projects");
 export const EXPORTS_ROOT = path.join(LIBRARY_ROOT, "exports");
+export const CODEX_EDITS_ROOT = path.join(LIBRARY_ROOT, "codex-edits");
 export const PROMPTS_ROOT = path.join(LIBRARY_ROOT, "prompts");
 export const HEAD_ANCHORS_PATH = path.join(LIBRARY_ROOT, "head-anchors.json");
 export const THEME_KITS_PATH = path.join(LIBRARY_ROOT, "theme-kits.json");
@@ -35,6 +36,7 @@ export async function ensureLibrary() {
     ...ASSET_TYPES.map((type) => mkdir(path.join(ASSETS_ROOT, type), { recursive: true })),
     mkdir(PROJECTS_ROOT, { recursive: true }),
     mkdir(EXPORTS_ROOT, { recursive: true }),
+    mkdir(CODEX_EDITS_ROOT, { recursive: true }),
     mkdir(PROMPTS_ROOT, { recursive: true }),
   ]);
 }

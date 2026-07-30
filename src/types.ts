@@ -1,6 +1,25 @@
 export const CANVAS_WIDTH = 1280;
 export const CANVAS_HEIGHT = 720;
 
+export type CodexEditStatus = "queued" | "running" | "completed" | "failed";
+
+export interface CodexEditJob {
+  version: 1;
+  id: string;
+  projectId: string;
+  projectName: string;
+  instruction: string;
+  status: CodexEditStatus;
+  progress: string;
+  createdAt: string;
+  updatedAt: string;
+  threadId?: string;
+  inputUrl: string;
+  outputUrl?: string;
+  finalResponse?: string;
+  error?: string;
+}
+
 export type AssetType = "characters" | "backgrounds" | "texts" | "decorations";
 
 export type HeadAnchor = {

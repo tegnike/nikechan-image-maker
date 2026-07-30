@@ -11,19 +11,22 @@ import {
   Layers3,
   Lock,
   LockOpen,
+  LoaderCircle,
   Plus,
   Redo2,
+  RefreshCw,
   Save,
   Sparkles,
   Trash2,
   Type,
   Undo2,
   Upload,
+  X,
 } from "lucide-react";
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Asset, AssetType, GeneratedSupportCopyPreset, Health, ProjectSummary, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
+import type { Asset, AssetType, CodexEditJob, GeneratedSupportCopyPreset, Health, ProjectSummary, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
   analyzeThumbnail,
@@ -48,6 +51,14 @@ import {
 import type { FinishPreset, ThemeMood, ThemeMoodFilter, ThumbnailTemplate } from "./lib";
 
 type LibraryTab = "characters" | "themes";
+
+type CodexSubscriptionStatus = {
+  available: boolean;
+  authenticated: boolean;
+  authMode: "chatgpt" | "other" | "none";
+  message: string;
+  active: boolean;
+};
 
 const fonts = ["Hiragino Sans", "Hiragino Maru Gothic ProN", "Yu Gothic", "Arial Black", "sans-serif"];
 
@@ -435,6 +446,13 @@ function App() {
   const [preview, setPreview] = useState("");
   const [scale, setScale] = useState(0.65);
   const [showSafeArea, setShowSafeArea] = useState(true);
+  const [codexPanelOpen, setCodexPanelOpen] = useState(false);
+  const [codexInstruction, setCodexInstruction] = useState("");
+  const [codexStatus, setCodexStatus] = useState<CodexSubscriptionStatus | null>(null);
+  const [codexJob, setCodexJob] = useState<CodexEditJob | null>(null);
+  const [codexJobs, setCodexJobs] = useState<CodexEditJob[]>([]);
+  const [codexError, setCodexError] = useState("");
+  const [codexSubmitting, setCodexSubmitting] = useState(false);
   const stageRef = useRef<Konva.Stage>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const themeGridRef = useRef<HTMLDivElement>(null);
@@ -459,6 +477,7 @@ function App() {
   ))), [project.layers]);
   const selectedIsSingleton = selected?.kind === "image"
     && (selected.assetType === "backgrounds" || selected.assetType === "characters");
+  const codexRunning = codexSubmitting || Boolean(codexJob && ["queued", "running"].includes(codexJob.status));
   const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
   const visibleThemes = useMemo(() => selectThemeKits(themes, themeMood), [themes, themeMood]);
   const themeMoodCounts = useMemo(() => themes.reduce<Record<ThemeMood, number>>((counts, theme) => {
@@ -537,17 +556,19 @@ function App() {
     return () => observer.disconnect();
   }, []);
 
-  const snapshot = useCallback(() => {
+  const captureCanvas = useCallback((pixelRatio = 1) => {
     const stage = stageRef.current;
     if (!stage) return "";
     const transformerNodes = stage.find("Transformer");
     transformerNodes.forEach((node) => node.hide());
     stage.draw();
-    const url = stage.toDataURL({ pixelRatio: 0.25, mimeType: "image/png" });
+    const url = stage.toDataURL({ pixelRatio, mimeType: "image/png" });
     transformerNodes.forEach((node) => node.show());
     stage.draw();
     return url;
   }, []);
+
+  const snapshot = useCallback(() => captureCanvas(0.25), [captureCanvas]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setPreview(snapshot()), 180);
@@ -939,18 +960,110 @@ function App() {
     setStatus(`${payload.project.name} を開きました`);
   };
 
+  const refreshCodexPanel = useCallback(async () => {
+    try {
+      const [statusResponse, jobsResponse] = await Promise.all([
+        fetch("/api/codex/status"),
+        fetch("/api/codex/edits?limit=10"),
+      ]);
+      const [statusPayload, jobsPayload] = await Promise.all([statusResponse.json(), jobsResponse.json()]);
+      if (!statusResponse.ok) throw new Error(statusPayload.error || "Codexの状態を確認できませんでした");
+      if (!jobsResponse.ok) throw new Error(jobsPayload.error || "Codexの編集履歴を読み込めませんでした");
+      const nextJobs = (jobsPayload.jobs || []) as CodexEditJob[];
+      setCodexStatus(statusPayload as CodexSubscriptionStatus);
+      setCodexJobs(nextJobs);
+      setCodexJob((current) => {
+        if (!current) return nextJobs[0] || null;
+        return nextJobs.find((job) => job.id === current.id) || current;
+      });
+    } catch (error) {
+      setCodexError(error instanceof Error ? error.message : "Codexへ接続できませんでした");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!codexPanelOpen) return;
+    setCodexError("");
+    void refreshCodexPanel();
+  }, [codexPanelOpen, refreshCodexPanel]);
+
+  useEffect(() => {
+    if (!codexPanelOpen || !codexJob || !["queued", "running"].includes(codexJob.status)) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/codex/edits/${encodeURIComponent(codexJob.id)}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Codexの進行状況を確認できませんでした");
+        if (stopped) return;
+        const next = payload.job as CodexEditJob;
+        setCodexJob(next);
+        setCodexJobs((jobs) => [next, ...jobs.filter((job) => job.id !== next.id)].slice(0, 10));
+        if (["completed", "failed"].includes(next.status)) {
+          setCodexStatus((current) => current ? { ...current, active: false } : current);
+          setStatus(next.status === "completed" ? "Codexの修正画像が完成しました" : "Codexの画像編集に失敗しました");
+        }
+      } catch (error) {
+        if (!stopped) setCodexError(error instanceof Error ? error.message : "Codexへ接続できませんでした");
+      }
+    };
+    void poll();
+    const timer = window.setInterval(poll, 1_500);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [codexJob?.id, codexJob?.status, codexPanelOpen]);
+
+  const requestCodexEdit = async () => {
+    const instruction = codexInstruction.trim();
+    if (!instruction) {
+      setCodexError("修正指示を入力してください");
+      return;
+    }
+    const dataUrl = captureCanvas(1);
+    if (!dataUrl) {
+      setCodexError("現在のキャンバスを画像化できませんでした");
+      return;
+    }
+    setCodexSubmitting(true);
+    setCodexError("");
+    setStatus("現在のキャンバスをCodexへ送っています…");
+    try {
+      const response = await fetch("/api/codex/edits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          projectName: project.name,
+          instruction,
+          dataUrl,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Codexの画像編集を開始できませんでした");
+      const next = payload.job as CodexEditJob;
+      setCodexJob(next);
+      setCodexJobs((jobs) => [next, ...jobs.filter((job) => job.id !== next.id)].slice(0, 10));
+      setCodexStatus((current) => current ? { ...current, active: true } : current);
+      setStatus("Codexが現在のキャンバスを修正しています…");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Codexの画像編集を開始できませんでした";
+      setCodexError(message);
+      setStatus(message);
+      await refreshCodexPanel();
+    } finally {
+      setCodexSubmitting(false);
+    }
+  };
+
   const exportPng = async () => {
     const stage = stageRef.current;
     if (!stage) return;
     setStatus("1280×720 PNGを書き出しています…");
     setSelectedId(null);
     await new Promise((resolve) => window.setTimeout(resolve, 60));
-    const transformerNodes = stage.find("Transformer");
-    transformerNodes.forEach((node) => node.hide());
-    stage.draw();
-    const dataUrl = stage.toDataURL({ pixelRatio: 1, mimeType: "image/png" });
-    transformerNodes.forEach((node) => node.show());
-    stage.draw();
+    const dataUrl = captureCanvas(1);
     const response = await fetch("/api/exports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1010,6 +1123,7 @@ function App() {
           <button className="icon-button" title="やり直す" onClick={redo}><Redo2 size={18} /></button>
           <button className="secondary-button" onClick={newProject}><Plus size={17} />新規</button>
           <button className="secondary-button" onClick={saveCurrentProject}><Save size={17} />保存</button>
+          <button className="codex-button" onClick={() => setCodexPanelOpen(true)}><Sparkles size={17} />Codexで修正</button>
           <button className="primary-button" onClick={exportPng}><Download size={17} />PNG書き出し</button>
         </div>
       </header>
@@ -1361,6 +1475,137 @@ function App() {
           </section>
         </aside>
       </main>
+
+      {codexPanelOpen ? (
+        <div className="codex-overlay" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCodexPanelOpen(false);
+        }}>
+          <section className="codex-dialog" role="dialog" aria-modal="true" aria-labelledby="codex-dialog-title">
+            <header className="codex-dialog-header">
+              <div className="codex-dialog-title">
+                <span className="codex-dialog-mark"><Sparkles size={18} /></span>
+                <div>
+                  <h2 id="codex-dialog-title">Codexでサムネイルを修正</h2>
+                  <p>現在のキャンバスを添付し、ChatGPTサブスクリプション内で編集します。</p>
+                </div>
+              </div>
+              <div className="codex-dialog-header-actions">
+                <span className={`codex-auth ${codexStatus?.authenticated ? "ready" : "unavailable"}`}>
+                  <i />{codexStatus?.message || "Codexを確認中…"}
+                </span>
+                <button className="icon-button" title="再読み込み" onClick={() => void refreshCodexPanel()}><RefreshCw size={16} /></button>
+                <button className="icon-button" title="閉じる" onClick={() => setCodexPanelOpen(false)}><X size={18} /></button>
+              </div>
+            </header>
+
+            <div className="codex-dialog-body">
+              <div className="codex-request-column">
+                <div className="codex-section-heading">
+                  <span>修正指示</span>
+                  <small>{codexInstruction.length} / 4,000</small>
+                </div>
+                <textarea
+                  className="codex-instruction"
+                  aria-label="Codexへの修正指示"
+                  placeholder="例：キャラクターと文字はそのままに、背景だけ朝らしく明るくしてください。疑似文字や小物は追加しないでください。"
+                  maxLength={4_000}
+                  value={codexInstruction}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setCodexInstruction(value);
+                    setCodexError("");
+                    if (codexJob && value !== codexJob.instruction) setCodexJob(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !codexRunning) {
+                      event.preventDefault();
+                      void requestCodexEdit();
+                    }
+                  }}
+                />
+                <div className="codex-request-note">
+                  <strong>編集元</strong>
+                  <span>実行時点の1280×720キャンバス</span>
+                  <span>OpenAI Platform API・APIキーへの切り替えなし</span>
+                </div>
+                {codexError ? <div className="codex-error" role="alert">{codexError}</div> : null}
+                {codexJob?.status === "failed" && codexJob.error ? <div className="codex-error" role="alert">{codexJob.error}</div> : null}
+                <button
+                  className="codex-submit"
+                  disabled={codexRunning || !codexInstruction.trim() || !codexStatus?.authenticated || Boolean(codexStatus?.active && !codexRunning)}
+                  onClick={() => void requestCodexEdit()}
+                >
+                  {codexRunning ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}
+                  {codexRunning ? "Codexが修正中…" : "現在のキャンバスをCodexで修正"}
+                </button>
+                <small className="codex-shortcut">⌘ Enterでも実行できます。画像編集にはCodex利用枠を使用します。</small>
+
+                {codexJobs.length ? (
+                  <div className="codex-history">
+                    <div className="codex-section-heading"><span>最近の修正</span><small>{codexJobs.length}件</small></div>
+                    <div className="codex-history-list">
+                      {codexJobs.map((job) => (
+                        <button
+                          key={job.id}
+                          className={codexJob?.id === job.id ? "selected" : ""}
+                          onClick={() => {
+                            setCodexJob(job);
+                            setCodexInstruction(job.instruction);
+                            setCodexError("");
+                          }}
+                        >
+                          <span>{new Date(job.createdAt).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                          <strong>{job.instruction}</strong>
+                          <em className={job.status}>{job.status === "completed" ? "完成" : job.status === "failed" ? "失敗" : "処理中"}</em>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="codex-preview-column">
+                <div className="codex-compare-grid">
+                  <figure>
+                    <figcaption><span>編集元</span><small>BEFORE</small></figcaption>
+                    <div className="codex-image-frame">
+                      <img src={codexJob?.inputUrl || preview} alt="Codexへ渡す現在のキャンバス" />
+                    </div>
+                  </figure>
+                  <figure>
+                    <figcaption><span>Codexの修正結果</span><small>AFTER</small></figcaption>
+                    <div className={`codex-image-frame result ${codexJob?.status || "empty"}`}>
+                      {codexJob?.status === "completed" && codexJob.outputUrl ? (
+                        <img src={`${codexJob.outputUrl}?v=${encodeURIComponent(codexJob.updatedAt)}`} alt="Codexが修正したサムネイル" />
+                      ) : codexRunning ? (
+                        <div className="codex-waiting"><LoaderCircle className="spin" size={30} /><strong>{codexJob?.progress || "Codexを開始しています"}</strong><span>完成後、この場所に画像を表示します。</span></div>
+                      ) : (
+                        <div className="codex-waiting"><Sparkles size={28} /><strong>修正結果をここで確認</strong><span>左の指示を入力して実行してください。</span></div>
+                      )}
+                    </div>
+                  </figure>
+                </div>
+
+                {codexJob ? (
+                  <div className={`codex-job-summary ${codexJob.status}`}>
+                    <div>
+                      <strong>{codexJob.progress}</strong>
+                      {codexJob.threadId ? <span>Codex thread · {codexJob.threadId.slice(0, 8)}</span> : null}
+                    </div>
+                    {codexJob.status === "completed" && codexJob.outputUrl ? (
+                      <div className="codex-result-actions">
+                        <a href={codexJob.outputUrl} target="_blank" rel="noreferrer">ブラウザで開く</a>
+                        <a href={codexJob.outputUrl} download={`${project.name || "thumbnail"}-codex.png`}><Download size={14} />PNGを保存</a>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {codexJob?.finalResponse ? <p className="codex-final-response">{codexJob.finalResponse}</p> : null}
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

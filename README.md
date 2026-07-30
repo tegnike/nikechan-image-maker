@@ -34,6 +34,7 @@ launchctl print gui/$(id -u)/com.nikechan.thumbnail-studio
 - 320×180の縮小プレビューと7項目の構成チェック
 - プロジェクトJSONの保存と再読込
 - 1280×720 PNGのT7保存とダウンロード
+- 現在のキャンバスとブラウザ入力の指示をCodexへ送り、修正結果をBEFORE／AFTERで確認・保存
 - キャラクターPNG/JPEG/WebPのライブラリ登録
 - スケジューラが追加した素材を10秒以内に自動反映
 - 背景素材は常に1枚だけ保持し、新しい背景を選ぶと自動で差し替え
@@ -52,10 +53,23 @@ thumbnail-maker/
 ├── prompts/
 ├── projects/
 ├── exports/
+├── codex-edits/
 ├── head-anchors.json
 ├── theme-kits.json
 └── index.jsonl
 ```
+
+## Codexで画像を修正
+
+ヘッダーの「Codexで修正」を開くと、現在の1280×720キャンバスを編集元として固定し、ブラウザ上で修正指示を入力できます。処理中の状態と過去10件の履歴を表示し、完成後は編集元と修正結果を並べて確認できます。結果PNGはブラウザで開くか、そのまま保存できます。
+
+この機能はローカルの`codex exec`とbuilt-in image generationだけを使います。起動時と実行直前に`codex login status`を検査し、ChatGPTログインでない場合は実行しません。Codex子プロセスには`OPENAI_API_KEY`、`CODEX_API_KEY`、`CODEX_ACCESS_TOKEN`を渡さず、OpenAI Platform APIへのフォールバックも行いません。サブスクリプション枠を予測しやすくするため、画像生成は1依頼につき1回だけに制限し、追加修正はブラウザから新しい依頼として送ります。
+
+```bash
+codex login status
+```
+
+常用のLaunchAgentでは、まずCodexアプリ同梱の互換ランタイムを使い、見つからない場合だけ実行中のNode.jsと同じbinディレクトリからCodexを解決します。別のCodex実行ファイルを使う場合だけ、サーバー起動時に`CODEX_BIN`で絶対パスを指定できます。
 
 `head-anchors.json` は、キャラクターPNG全体に対する頭部中心と頭部サイズを0〜1の正規化座標で保持します。キャラクターを選択すると、水色の頭部枠とピンクの中心点をキャンバス上で確認でき、調整欄からプロジェクト単位で補正できます。既存素材のアンカーを再構築する場合は次を実行します。
 

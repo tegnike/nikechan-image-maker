@@ -18,6 +18,16 @@ import {
   saveProject,
   storeAsset,
 } from "./storage";
+import {
+  codexEditFileExists,
+  createCodexEditJob,
+  getCodexEditFile,
+  getCodexSubscriptionStatus,
+  hasActiveCodexEdit,
+  listCodexEditJobs,
+  readCodexEditJob,
+  startCodexEdit,
+} from "./codex-edits";
 import type { AssetType, ThumbnailProject } from "../src/types";
 
 const app = express();
@@ -98,6 +108,68 @@ app.post("/api/exports", async (request, response) => {
   }
   const target = await saveExport(String(projectId || "project"), String(projectName || "thumbnail"), png);
   response.json({ savedTo: target });
+});
+
+app.get("/api/codex/status", async (_request, response) => {
+  response.json({ ...(await getCodexSubscriptionStatus()), active: hasActiveCodexEdit() });
+});
+
+app.get("/api/codex/edits", async (request, response) => {
+  const requestedLimit = Number(request.query.limit || 12);
+  const limit = Number.isFinite(requestedLimit) ? requestedLimit : 12;
+  response.json({ jobs: await listCodexEditJobs(limit) });
+});
+
+app.get("/api/codex/edits/:id", async (request, response) => {
+  try {
+    response.json({ job: await readCodexEditJob(String(request.params.id)) });
+  } catch {
+    response.status(404).json({ error: "Codex edit job not found" });
+  }
+});
+
+app.post("/api/codex/edits", async (request, response) => {
+  if (hasActiveCodexEdit()) {
+    response.status(409).json({ error: "別のCodex画像編集が進行中です" });
+    return;
+  }
+  const subscription = await getCodexSubscriptionStatus(true);
+  if (!subscription.authenticated || subscription.authMode !== "chatgpt") {
+    response.status(503).json({ error: subscription.message });
+    return;
+  }
+  const { projectId, projectName, instruction, dataUrl } = request.body || {};
+  if (typeof instruction !== "string" || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png;base64,")) {
+    response.status(400).json({ error: "現在のキャンバスと修正指示が必要です" });
+    return;
+  }
+  const png = Buffer.from(dataUrl.slice("data:image/png;base64,".length), "base64");
+  const job = await createCodexEditJob({
+    projectId: String(projectId || "project"),
+    projectName: String(projectName || "thumbnail"),
+    instruction,
+    png,
+  });
+  if (!startCodexEdit(job.id)) {
+    response.status(409).json({ error: "別のCodex画像編集が開始されました" });
+    return;
+  }
+  response.status(202).json({ job });
+});
+
+app.get("/codex-edits/:id/:file", async (request, response) => {
+  const fileName = String(request.params.file);
+  try {
+    if (!await codexEditFileExists(String(request.params.id), fileName)) {
+      response.status(404).end();
+      return;
+    }
+    response.type("png");
+    response.setHeader("Cache-Control", "no-store");
+    response.sendFile(getCodexEditFile(String(request.params.id), fileName));
+  } catch {
+    response.status(404).end();
+  }
 });
 
 if (process.env.NODE_ENV === "production") {
