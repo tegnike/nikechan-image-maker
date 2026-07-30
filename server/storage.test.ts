@@ -101,7 +101,7 @@ describe("thumbnail library storage", () => {
     expect(assets.find((asset) => asset.name === "root")?.headAnchor).toMatchObject({ centerX: 0.46, centerY: 0.126 });
   });
 
-  it("loads a background, title, and movable accent as one theme kit", async () => {
+  it("loads a background, title, generated support copy, and movable accent as one theme kit", async () => {
     await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
       version: 1,
       updatedAt: new Date().toISOString(),
@@ -116,6 +116,7 @@ describe("thumbnail library storage", () => {
         supportCopy: "reading",
         backgroundAssetPath: "backgrounds/2026/07/29/background.png",
         titleAssetPath: "texts/2026/07/29/title.png",
+        supportAssetPath: "texts/2026/07/29/support.png",
         accentAssets: [{
           assetPath: "decorations/2026/07/29/mug.png",
           role: "prop",
@@ -133,6 +134,7 @@ describe("thumbnail library storage", () => {
       supportCopy: "reading",
       background: { type: "backgrounds", themeId: "theme-test" },
       title: { type: "texts", themeId: "theme-test" },
+      support: { type: "texts", themeId: "theme-test", assetPath: "texts/2026/07/29/support.png" },
       accents: [{
         asset: { type: "decorations", themeId: "theme-test" },
         role: "prop",

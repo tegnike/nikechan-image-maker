@@ -53,6 +53,7 @@ export type ThemeKit = {
   supportCopy?: SupportCopyPreset;
   background: Asset;
   title: Asset;
+  support?: Asset;
   accents: ThemeAccent[];
   createdAt: string;
 };
@@ -78,7 +79,7 @@ export type ImageLayer = LayerBase & {
   src: string;
   assetPath?: string;
   themeId?: string;
-  themeRole?: "background" | "title" | ThemeAccentRole;
+  themeRole?: "background" | "title" | "support-copy" | ThemeAccentRole;
   assetType: AssetType;
   headAnchor?: HeadAnchor;
   titleSplitRatio?: number;

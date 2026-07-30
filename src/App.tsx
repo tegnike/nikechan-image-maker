@@ -686,9 +686,10 @@ function App() {
     setStatus(`${theme.name} を組み立てています…`);
     try {
       const themeAccents = theme.accents || [];
-      const [backgroundLayer, titleLayer, accentLayers] = await Promise.all([
+      const [backgroundLayer, titleLayer, supportLayer, accentLayers] = await Promise.all([
         buildAssetLayer(theme.background),
         buildAssetLayer(theme.title),
+        theme.support ? buildAssetLayer(theme.support) : Promise.resolve(null),
         Promise.all(themeAccents.map(async (accent: ThemeAccent) => {
           const layer = await buildAssetLayer(accent.asset);
           if (layer.kind !== "image") return layer;
@@ -708,15 +709,24 @@ function App() {
       if (backgroundLayer.kind !== "image" || titleLayer.kind !== "image") throw new Error("Invalid theme assets");
       const background = { ...backgroundLayer, themeRole: "background" as const };
       const title = { ...titleLayer, themeRole: "title" as const, compositionRole: "main-title" as const };
+      const support = supportLayer?.kind === "image"
+        ? { ...supportLayer, themeRole: "support-copy" as const, compositionRole: "support-copy" as const }
+        : undefined;
       commitProject((current) => {
-        const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title);
+        const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title, support);
         const templated = applyThumbnailTemplate(assembled, "character-right");
         const laidOut = applyTitleLayout(templated, theme.titleLayout || "side-by-side");
-        return { ...current, layers: applySupportCopy(laidOut, theme.supportCopy || "none", theme.palette) };
+        return {
+          ...current,
+          layers: support
+            ? laidOut
+            : applySupportCopy(laidOut, theme.supportCopy || "none", theme.palette),
+        };
       });
       setSelectedId(theme.titleLayout === "split-character" ? null : title.id);
+      const supportLabel = support ? "・補助文字画像" : theme.supportCopy && theme.supportCopy !== "none" ? "・補助文字" : "";
       const accentLabel = accentLayers.length ? `・アクセント${accentLayers.length}点` : "";
-      setStatus(`${theme.name} を背景・文字${accentLabel}セットで追加しました`);
+      setStatus(`${theme.name} を背景・文字${supportLabel}${accentLabel}セットで追加しました`);
     } catch {
       setStatus(`${theme.name} を読み込めませんでした`);
     }
@@ -942,7 +952,7 @@ function App() {
             <button className={assetType === "characters" ? "active" : ""} onClick={() => setAssetType("characters")}>キャラクター</button>
           </div>
           <div className="asset-tip">
-            {assetType === "themes" && "同じ世界観の背景・「朝活」文字・角または上下の部分フレームをセットで追加します。"}
+            {assetType === "themes" && "同じ世界観の背景・「朝活」・補助文字・角または上下の部分フレームをセットで追加します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
           </div>
           {assetType === "themes" ? (
@@ -965,10 +975,11 @@ function App() {
                       />
                     ))}
                     <img className="theme-title" src={theme.title.url} alt="" />
+                    {theme.support ? <img className="theme-support" src={theme.support.url} alt="" /> : null}
                   </div>
                   <div className="theme-info">
                     <strong>{theme.name}</strong>
-                    <span>{theme.category} · 背景＋文字{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
+                    <span>{theme.category} · 背景＋文字{theme.support ? "＋補助文字画像" : ""}{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
                       ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
                       : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
                     {theme.titleLayout || theme.supportCopy ? (

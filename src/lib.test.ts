@@ -220,6 +220,36 @@ describe("thumbnail project model", () => {
     expect(support[0]).toMatchObject({ kind: "text", text: "MORNING STREAM", fill: "#f8fff0", stroke: "#173b36", rotation: -8 });
   });
 
+  it("positions a generated support-copy image with the selected title layout", () => {
+    const base = createTitleLayer();
+    const title = {
+      ...base,
+      id: "generated-title",
+      kind: "image" as const,
+      src: "/title.png",
+      assetType: "texts" as const,
+      compositionRole: "main-title" as const,
+      width: 900,
+      height: 420,
+    };
+    const support = {
+      ...title,
+      id: "generated-support",
+      src: "/support.png",
+      compositionRole: "support-copy" as const,
+      themeRole: "support-copy" as const,
+      width: 1000,
+      height: 180,
+    };
+
+    const diagonal = applyTitleLayout([title, support], "diagonal-impact");
+    const positioned = diagonal.find((layer) => layer.id === support.id)!;
+
+    expect(positioned).toMatchObject({ kind: "image", rotation: -8, compositionRole: "support-copy" });
+    expect(Math.abs(positioned.width * positioned.scaleX)).toBeLessThanOrEqual(580);
+    expect(Math.abs(positioned.height * positioned.scaleY)).toBeLessThanOrEqual(88);
+  });
+
   it("positions and scales a character from its head anchor", () => {
     const base = createTitleLayer();
     const character = {

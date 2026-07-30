@@ -221,9 +221,10 @@ type ThemeAccentRecord = {
   placement: { x: number; y: number; width: number };
 };
 
-type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "accents"> & {
+type ThemeKitRecord = Omit<ThemeKit, "background" | "title" | "support" | "accents"> & {
   backgroundAssetPath: string;
   titleAssetPath: string;
+  supportAssetPath?: string;
   accentAssets?: ThemeAccentRecord[];
 };
 
@@ -275,6 +276,9 @@ export async function listThemeKits(): Promise<ThemeKit[]> {
       createdAt: theme.createdAt,
       background: themeAsset(theme.backgroundAssetPath, "backgrounds", theme.id, theme.createdAt),
       title: themeAsset(theme.titleAssetPath, "texts", theme.id, theme.createdAt),
+      support: theme.supportAssetPath
+        ? themeAsset(theme.supportAssetPath, "texts", theme.id, theme.createdAt)
+        : undefined,
       accents: (theme.accentAssets || []).flatMap((accent) => {
         const placement = accent.placement;
         if (

@@ -227,18 +227,26 @@ function splitTitleLayer(title: ImageLayer, start: number, end: number, name: st
   };
 }
 
-function placeSupportCopy(layer: TextLayer, layers: StudioLayer[]): TextLayer {
+function placeSupportCopy<T extends StudioLayer>(layer: T, layers: StudioLayer[]): T {
+  let box = { x: 90, y: 510, width: 560, height: 92 };
+  let rotation = -2;
   if (layers.some((item) => item.compositionRole === "title-part")) {
-    return { ...layer, x: 430, y: 585, width: 420, height: 82, rotation: 0 };
+    box = { x: 430, y: 585, width: 420, height: 82 };
+    rotation = 0;
+  } else {
+    const mainTitle = findMainTitle(layers);
+    if (mainTitle && Math.abs(mainTitle.rotation) >= 8) {
+      box = { x: 120, y: 570, width: 580, height: 88 };
+      rotation = -8;
+    } else if (mainTitle && mainTitle.y >= 340) {
+      box = { x: 90, y: 78, width: 560, height: 92 };
+    }
   }
-  const mainTitle = findMainTitle(layers);
-  if (mainTitle && Math.abs(mainTitle.rotation) >= 8) {
-    return { ...layer, x: 120, y: 570, width: 580, height: 88, rotation: -8 };
+
+  if (layer.kind === "image") {
+    return { ...fitLayerInBox(layer, box, 0.5, 0.5), rotation };
   }
-  if (mainTitle && mainTitle.y >= 340) {
-    return { ...layer, x: 90, y: 78, width: 560, height: 92, rotation: -2 };
-  }
-  return { ...layer, x: 90, y: 510, width: 560, height: 92, rotation: -2 };
+  return { ...layer, ...box, rotation };
 }
 
 function supportCopyColors(palette: string[]) {
@@ -265,7 +273,7 @@ export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPrese
     : layer);
 
   if (preset === "side-by-side") {
-    return next.map((layer) => layer.kind === "text" && layer.compositionRole === "support-copy"
+    return next.map((layer) => layer.compositionRole === "support-copy"
       ? placeSupportCopy(layer, next)
       : layer);
   }
@@ -299,7 +307,7 @@ export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPrese
     next = [...next, left, right];
   }
 
-  return next.map((layer) => layer.kind === "text" && layer.compositionRole === "support-copy"
+  return next.map((layer) => layer.compositionRole === "support-copy"
     ? placeSupportCopy(layer, next)
     : layer);
 }
@@ -444,6 +452,7 @@ export function replaceThemeKitLayers(
   background: ImageLayer,
   accents: StudioLayer[],
   title: ImageLayer,
+  support?: ImageLayer,
 ): StudioLayer[] {
   const remaining = layers
     .filter((layer) => {
@@ -454,7 +463,7 @@ export function replaceThemeKitLayers(
     })
     .filter((layer) => layer.compositionRole !== "support-copy")
     .map((layer) => layer.kind === "text" ? { ...layer, visible: false } : layer);
-  return [background, ...remaining, ...accents, title];
+  return [background, ...remaining, ...accents, title, ...(support ? [support] : [])];
 }
 
 export function scaleLayerFromCenter<T extends StudioLayer>(layer: T, factor: number): T {
