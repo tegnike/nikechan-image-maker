@@ -12,6 +12,7 @@ import {
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
+  replaceCharacterLayer,
   replaceThemeKitLayers,
   remapHeadAnchorToCrop,
   sanitizeProject,
@@ -146,6 +147,43 @@ describe("thumbnail project model", () => {
     const replaced = replaceBackgroundLayer([oldBackground, title, character], nextBackground);
     expect(replaced.map((layer) => layer.id)).toEqual(["new-background", title.id, "character"]);
     expect(replaced.filter((layer) => layer.kind === "image" && layer.assetType === "backgrounds")).toHaveLength(1);
+  });
+
+  it("replaces every existing character while preserving other layers", () => {
+    const title = createTitleLayer();
+    const image = {
+      ...title,
+      kind: "image" as const,
+      src: "/asset.png",
+      assetType: "characters" as const,
+    };
+    const oldCharacter = { ...image, id: "old-character", src: "/old-character.png" };
+    const duplicateCharacter = { ...image, id: "duplicate-character", src: "/duplicate-character.png" };
+    const nextCharacter = { ...image, id: "next-character", src: "/next-character.png" };
+
+    const replaced = replaceCharacterLayer([title, oldCharacter, duplicateCharacter], nextCharacter);
+    expect(replaced.map((layer) => layer.id)).toEqual([title.id, "next-character"]);
+    expect(replaced.filter((layer) => layer.kind === "image" && layer.assetType === "characters")).toHaveLength(1);
+  });
+
+  it("keeps only the newest character and background when loading an older project", () => {
+    const project = createEmptyProject();
+    const image = {
+      ...createTitleLayer(),
+      kind: "image" as const,
+      src: "/asset.png",
+      assetType: "characters" as const,
+    };
+    const layers = [
+      { ...image, id: "old-background", assetType: "backgrounds" as const },
+      { ...image, id: "old-character" },
+      { ...image, id: "new-background", assetType: "backgrounds" as const },
+      { ...image, id: "title", assetType: "texts" as const },
+      { ...image, id: "new-character" },
+    ];
+
+    const sanitized = sanitizeProject({ ...project, layers });
+    expect(sanitized.layers.map((layer) => layer.id)).toEqual(["new-background", "title", "new-character"]);
   });
 
   it("replaces the complete generated theme while preserving characters", () => {

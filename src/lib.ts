@@ -462,6 +462,15 @@ export function replaceBackgroundLayer(layers: StudioLayer[], background: Studio
   ];
 }
 
+export function replaceCharacterLayer(layers: StudioLayer[], character: StudioLayer): StudioLayer[] {
+  return [
+    ...layers.filter(
+      (layer) => !(layer.kind === "image" && layer.assetType === "characters"),
+    ),
+    character,
+  ];
+}
+
 export function replaceThemeKitLayers(
   layers: StudioLayer[],
   background: ImageLayer,
@@ -511,18 +520,26 @@ export function scaleLayerFromCenter<T extends StudioLayer>(layer: T, factor: nu
 }
 
 export function sanitizeProject(input: ThumbnailProject): ThumbnailProject {
+  const imageLayers = Array.isArray(input.layers)
+    ? input.layers
+      .filter((layer) => layer.kind === "image")
+      .filter((layer) => (layer as { compositionRole?: string }).compositionRole !== "title-part")
+    : [];
+  const assetTypes = imageLayers.map((layer) => layer.assetType);
+  const lastBackgroundIndex = assetTypes.lastIndexOf("backgrounds");
+  const lastCharacterIndex = assetTypes.lastIndexOf("characters");
   return {
     ...input,
     version: 1,
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT,
     backgroundColor: input.backgroundColor || "#fff8e8",
-    layers: Array.isArray(input.layers)
-      ? input.layers
-        .filter((layer) => layer.kind === "image")
-        .filter((layer) => (layer as { compositionRole?: string }).compositionRole !== "title-part")
-        .map(normalizeImageLayer)
-      : [],
+    layers: imageLayers
+      .filter((layer, index) => (
+        (layer.assetType !== "backgrounds" || index === lastBackgroundIndex)
+        && (layer.assetType !== "characters" || index === lastCharacterIndex)
+      ))
+      .map(normalizeImageLayer),
     updatedAt: new Date().toISOString(),
   };
 }

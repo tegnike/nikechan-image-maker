@@ -38,6 +38,7 @@ import {
   imageAppearanceDefaults,
   moveItem,
   replaceBackgroundLayer,
+  replaceCharacterLayer,
   replaceThemeKitLayers,
   remapHeadAnchorToCrop,
   sanitizeProject,
@@ -456,6 +457,8 @@ function App() {
       ? [layer.supportCopyPreset]
       : []
   ))), [project.layers]);
+  const selectedIsSingleton = selected?.kind === "image"
+    && (selected.assetType === "backgrounds" || selected.assetType === "characters");
   const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
   const visibleThemes = useMemo(() => selectThemeKits(themes, themeMood), [themes, themeMood]);
   const themeMoodCounts = useMemo(() => themes.reduce<Record<ThemeMood, number>>((counts, theme) => {
@@ -602,6 +605,10 @@ function App() {
 
   const duplicateSelected = useCallback(() => {
     if (!selected) return;
+    if (selected.kind === "image" && (selected.assetType === "backgrounds" || selected.assetType === "characters")) {
+      setStatus(selected.assetType === "characters" ? "キャラクターは1人だけ配置できます" : "背景は1枚だけ配置できます");
+      return;
+    }
     const copy = cloneLayer(selected);
     commitProject((current) => ({ ...current, layers: [...current.layers, copy] }));
     setSelectedId(copy.id);
@@ -715,12 +722,19 @@ function App() {
   const addAsset = async (asset: Asset) => {
     try {
       const layer = await buildAssetLayer(asset);
+      const replacingCharacter = asset.type === "characters" && project.layers.some(
+        (current) => current.kind === "image" && current.assetType === "characters",
+      );
       commitProject((current) => ({
         ...current,
-        layers: asset.type === "backgrounds" ? replaceBackgroundLayer(current.layers, layer) : [...current.layers, layer],
+        layers: asset.type === "backgrounds"
+          ? replaceBackgroundLayer(current.layers, layer)
+          : asset.type === "characters"
+            ? replaceCharacterLayer(current.layers, layer)
+            : [...current.layers, layer],
       }));
       setSelectedId(layer.id);
-      setStatus(`${asset.name} を追加しました`);
+      setStatus(`${asset.name} を${replacingCharacter ? "置き換え" : "追加"}しました`);
     } catch {
       setStatus(`${asset.name} を読み込めませんでした`);
     }
@@ -920,7 +934,7 @@ function App() {
     }
     historyRef.current = [];
     futureRef.current = [];
-    setProject(payload.project);
+    setProject(sanitizeProject(payload.project));
     setSelectedId(null);
     setStatus(`${payload.project.name} を開きました`);
   };
@@ -1017,7 +1031,7 @@ function App() {
           </div>
           <div className="asset-tip">
             {assetType === "themes" && "文字を切断・フォント合成せず、テーマごとに選ばれた生成文字2点だけを配置します。"}
-            {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
+            {assetType === "characters" && "キャラクターは1人だけ。新しい素材を選ぶと現在のキャラクターを置き換えます。"}
           </div>
           {assetType === "themes" ? (
             <>
@@ -1226,7 +1240,11 @@ function App() {
             <div className="layer-actions">
               <button title="前面へ" onClick={() => reorderSelected(1)}><ArrowUp size={15} /></button>
               <button title="背面へ" onClick={() => reorderSelected(-1)}><ArrowDown size={15} /></button>
-              <button title="複製" onClick={duplicateSelected}><Copy size={15} /></button>
+              <button
+                title={selectedIsSingleton ? "背景とキャラクターは複製できません" : "複製"}
+                disabled={selectedIsSingleton}
+                onClick={duplicateSelected}
+              ><Copy size={15} /></button>
               <button title="削除" onClick={deleteSelected}><Trash2 size={15} /></button>
             </div>
           </section>
