@@ -246,8 +246,8 @@ button { color: inherit; }
 .codex-job-summary.completed { border-color: #bfe5d3; background: #f2fbf7; }
 .codex-job-summary.failed { border-color: #edc6ca; background: #fff6f6; }
 .codex-result-actions { display: flex; gap: 6px; }
-.codex-result-actions a { height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid #cfc7ed; border-radius: 7px; background: white; color: #5f4fd0; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
-.codex-result-actions a:hover { border-color: #9487e8; background: #f0edff; }
+.codex-result-actions a, .codex-result-actions button { height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid #cfc7ed; border-radius: 7px; background: white; color: #5f4fd0; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.codex-result-actions a:hover, .codex-result-actions button:hover { border-color: #9487e8; background: #f0edff; }
 .codex-final-response { margin: 10px 2px 0; padding: 10px 11px; border-left: 3px solid #a99cef; border-radius: 0 8px 8px 0; background: #f2effa; color: #71697c; font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

@@ -6,11 +6,13 @@ import {
   applyThumbnailTemplate,
   applyTitleLayout,
   cloneLayer,
+  codexResultLayerId,
   classifyThemeMoods,
   createEmptyProject,
   createTitleLayer,
   imageAppearanceDefaults,
   moveItem,
+  placeCodexResultLayer,
   replaceBackgroundLayer,
   replaceCharacterLayer,
   replaceThemeKitLayers,
@@ -100,6 +102,40 @@ describe("thumbnail project model", () => {
     const source = ["background", "text", "character"];
     expect(moveItem(source, 0, 2)).toEqual(["text", "character", "background"]);
     expect(source).toEqual(["background", "text", "character"]);
+  });
+
+  it("places a completed Codex result once as the locked topmost canvas layer", () => {
+    const original = createTitleLayer();
+    const job = {
+      version: 1 as const,
+      id: "20260730T150000Z-result",
+      projectId: "project-test",
+      projectName: "朝活サムネイル",
+      instruction: "背景を明るくする",
+      status: "completed" as const,
+      progress: "修正画像が完成しました",
+      createdAt: "2026-07-30T15:00:00.000Z",
+      updatedAt: "2026-07-30T15:01:00.000Z",
+      inputUrl: "/codex-edits/job/input.png",
+      outputUrl: "/codex-edits/job/output.png",
+    };
+
+    const placed = placeCodexResultLayer([original], job);
+    expect(placed.at(-1)).toMatchObject({
+      id: codexResultLayerId(job.id),
+      name: "Codex修正結果",
+      kind: "image",
+      codexJobId: job.id,
+      assetType: "decorations",
+      x: 0,
+      y: 0,
+      width: 1280,
+      height: 720,
+      scaleX: 1,
+      scaleY: 1,
+      locked: true,
+    });
+    expect(placeCodexResultLayer(placed, job)).toBe(placed);
   });
 
   it("scales a rotated layer around its visual center", () => {

@@ -1,5 +1,6 @@
 import type {
   AssetType,
+  CodexEditJob,
   HeadAnchor,
   ImageLayer,
   StudioLayer,
@@ -181,6 +182,39 @@ export function imageAppearanceDefaults(assetType: AssetType) {
 
 export function normalizeImageLayer(layer: ImageLayer): ImageLayer {
   return { ...imageAppearanceDefaults(layer.assetType), ...layer };
+}
+
+export function codexResultLayerId(jobId: string) {
+  return `codex-result-${jobId}`;
+}
+
+export function placeCodexResultLayer(layers: StudioLayer[], job: CodexEditJob): StudioLayer[] {
+  if (job.status !== "completed" || !job.outputUrl) return layers;
+  const id = codexResultLayerId(job.id);
+  if (layers.some((layer) => layer.id === id || (layer.kind === "image" && layer.codexJobId === job.id))) {
+    return layers;
+  }
+  const separator = job.outputUrl.includes("?") ? "&" : "?";
+  const result: ImageLayer = {
+    ...imageAppearanceDefaults("decorations"),
+    id,
+    kind: "image",
+    name: "Codex修正結果",
+    src: `${job.outputUrl}${separator}v=${encodeURIComponent(job.updatedAt)}`,
+    codexJobId: job.id,
+    assetType: "decorations",
+    x: 0,
+    y: 0,
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: true,
+    scaleX: 1,
+    scaleY: 1,
+  };
+  return [...layers, result];
 }
 
 function fitLayerInBox<T extends StudioLayer>(

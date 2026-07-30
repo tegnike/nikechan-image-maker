@@ -101,6 +101,7 @@ type LayerBase = {
 export type ImageLayer = LayerBase & {
   kind: "image";
   src: string;
+  codexJobId?: string;
   assetPath?: string;
   themeId?: string;
   themeRole?: "background" | "title" | "title-part-asa" | "title-part-katsu" | "support-copy" | ThemeAccentRole;

@@ -36,10 +36,12 @@ import {
   applyTitleLayout,
   classifyThemeMoods,
   cloneLayer,
+  codexResultLayerId,
   createEmptyProject,
   createId,
   imageAppearanceDefaults,
   moveItem,
+  placeCodexResultLayer,
   replaceBackgroundLayer,
   replaceCharacterLayer,
   replaceThemeKitLayers,
@@ -981,6 +983,13 @@ function App() {
     }
   }, []);
 
+  const placeCodexJobOnCanvas = useCallback((job: CodexEditJob) => {
+    if (job.status !== "completed" || !job.outputUrl) return;
+    commitProject((current) => ({ ...current, layers: placeCodexResultLayer(current.layers, job) }));
+    setSelectedId(codexResultLayerId(job.id));
+    setStatus("Codexの修正画像を最前面のレイヤーに追加しました");
+  }, [commitProject]);
+
   useEffect(() => {
     if (!codexPanelOpen) return;
     setCodexError("");
@@ -988,7 +997,7 @@ function App() {
   }, [codexPanelOpen, refreshCodexPanel]);
 
   useEffect(() => {
-    if (!codexPanelOpen || !codexJob || !["queued", "running"].includes(codexJob.status)) return;
+    if (!codexJob || !["queued", "running"].includes(codexJob.status)) return;
     let stopped = false;
     const poll = async () => {
       try {
@@ -1001,7 +1010,11 @@ function App() {
         setCodexJobs((jobs) => [next, ...jobs.filter((job) => job.id !== next.id)].slice(0, 10));
         if (["completed", "failed"].includes(next.status)) {
           setCodexStatus((current) => current ? { ...current, active: false } : current);
-          setStatus(next.status === "completed" ? "Codexの修正画像が完成しました" : "Codexの画像編集に失敗しました");
+          if (next.status === "completed" && next.outputUrl && next.projectId === project.id) {
+            placeCodexJobOnCanvas(next);
+          } else {
+            setStatus(next.status === "completed" ? "Codexの修正画像が完成しました" : "Codexの画像編集に失敗しました");
+          }
         }
       } catch (error) {
         if (!stopped) setCodexError(error instanceof Error ? error.message : "Codexへ接続できませんでした");
@@ -1013,7 +1026,7 @@ function App() {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [codexJob?.id, codexJob?.status, codexPanelOpen]);
+  }, [codexJob?.id, codexJob?.status, placeCodexJobOnCanvas, project.id]);
 
   const requestCodexEdit = async () => {
     const instruction = codexInstruction.trim();
@@ -1594,6 +1607,7 @@ function App() {
                     </div>
                     {codexJob.status === "completed" && codexJob.outputUrl ? (
                       <div className="codex-result-actions">
+                        <button type="button" onClick={() => placeCodexJobOnCanvas(codexJob)}><Layers3 size={14} />最前面へ配置</button>
                         <a href={codexJob.outputUrl} target="_blank" rel="noreferrer">ブラウザで開く</a>
                         <a href={codexJob.outputUrl} download={`${project.name || "thumbnail"}-codex.png`}><Download size={14} />PNGを保存</a>
                       </div>
