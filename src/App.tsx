@@ -31,7 +31,7 @@ import {
   applyGeneratedSupportCopy,
   applyThumbnailTemplate,
   applyTitleLayout,
-  classifyThemeMood,
+  classifyThemeMoods,
   cloneLayer,
   createEmptyProject,
   createId,
@@ -122,6 +122,8 @@ const themeMoodLabels: Record<ThemeMoodFilter, string> = {
   all: "すべて",
   pastel: "パステル",
   pop: "ポップ",
+  cool: "クール",
+  warm: "ウォーム",
   dark: "ダーク",
 };
 
@@ -129,6 +131,8 @@ const themeMoodDescriptions: Record<ThemeMoodFilter, string> = {
   all: "すべての雰囲気",
   pastel: "淡くやわらかい配色",
   pop: "鮮やかな差し色が主役の明るい配色",
+  cool: "青・水色・緑・紫が印象的な配色",
+  warm: "ピンク・赤・橙・黄・ブラウンが印象的な配色",
   dark: "濃い背景を軸にした深みのある配色",
 };
 
@@ -444,10 +448,9 @@ function App() {
   const thumbnailAnalysis = useMemo(() => analyzeThumbnail(project.layers), [project.layers]);
   const visibleThemes = useMemo(() => selectThemeKits(themes, themeMood), [themes, themeMood]);
   const themeMoodCounts = useMemo(() => themes.reduce<Record<ThemeMood, number>>((counts, theme) => {
-    const mood = classifyThemeMood(theme);
-    counts[mood] += 1;
+    classifyThemeMoods(theme).forEach((mood) => { counts[mood] += 1; });
     return counts;
-  }, { pastel: 0, pop: 0, dark: 0 }), [themes]);
+  }, { pastel: 0, pop: 0, cool: 0, warm: 0, dark: 0 }), [themes]);
   const availableThemeMoods = useMemo<ThemeMoodFilter[]>(() => [
     "all",
     ...(Object.keys(themeMoodCounts) as ThemeMood[]).filter((mood) => themeMoodCounts[mood] > 0),

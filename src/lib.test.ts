@@ -6,7 +6,7 @@ import {
   applyThumbnailTemplate,
   applyTitleLayout,
   cloneLayer,
-  classifyThemeMood,
+  classifyThemeMoods,
   createEmptyProject,
   createTitleLayer,
   imageAppearanceDefaults,
@@ -39,12 +39,19 @@ describe("thumbnail project model", () => {
     const pop = theme("pop", "2026-07-29T10:00:00+02:00", ["#FFF7F2", "#FF005D", "#91FF00", "#2A3040", "#FFFFFF"]);
     const dark = theme("dark", "2026-07-27T10:00:00+02:00", ["#151923", "#1FB7B2", "#F15A8A", "#F6F1E8"]);
 
-    expect(classifyThemeMood(pastel)).toBe("pastel");
-    expect(classifyThemeMood(pop)).toBe("pop");
-    expect(classifyThemeMood(soft)).toBe("pastel");
-    expect(classifyThemeMood(dark)).toBe("dark");
+    const cool = theme("cool", "2026-07-26T10:00:00+02:00", ["#F7FBFF", "#1F6BFF", "#79E0D4", "#2A3040", "#FFFFFF"]);
+    const warm = theme("warm", "2026-07-25T10:00:00+02:00", ["#FFF6E2", "#E8843A", "#7A4D2B", "#F5C96A", "#FFFFFF"]);
+
+    expect(classifyThemeMoods(pastel)).toContain("pastel");
+    expect(classifyThemeMoods(pop)).toContain("pop");
+    expect(classifyThemeMoods(soft)).toContain("pastel");
+    expect(classifyThemeMoods(cool)).toContain("cool");
+    expect(classifyThemeMoods(warm)).toContain("warm");
+    expect(classifyThemeMoods(dark)).toContain("dark");
     expect(selectThemeKits([soft, pastel, pop, dark], "all").map((item) => item.id)).toEqual(["pastel", "pop", "soft", "dark"]);
     expect(selectThemeKits([soft, pastel, pop, dark], "pastel").map((item) => item.id)).toEqual(["pastel", "soft"]);
+    expect(selectThemeKits([cool, warm], "cool").map((item) => item.id)).toContain("cool");
+    expect(selectThemeKits([cool, warm], "warm").map((item) => item.id)).toContain("warm");
   });
 
   it("creates a blank 1280x720 project without synthetic text", () => {

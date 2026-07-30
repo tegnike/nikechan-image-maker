@@ -86,7 +86,7 @@ button { color: inherit; }
 .empty-assets { grid-column: 1 / -1; padding: 40px 10px; color: #aaa4b4; text-align: center; }
 .empty-assets p { margin: 9px 0 2px; color: #777180; font-size: 12px; font-weight: 600; }
 .empty-assets span { font-size: 9px; }
-.theme-mood-tabs { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 7px 11px 0; }
+.theme-mood-tabs { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 7px 11px 0; }
 .theme-mood-tabs button { min-width: 0; padding: 6px 2px; overflow: hidden; border: 1px solid #e2ddeb; border-radius: 7px; background: #faf9fc; color: #837c8f; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .theme-mood-tabs button:hover { border-color: #b9aff0; color: var(--violet); }
 .theme-mood-tabs button.active { border-color: #9b8ff0; background: #eeeaff; color: var(--violet-dark); font-weight: 700; }
