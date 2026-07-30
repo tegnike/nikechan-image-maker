@@ -53,7 +53,7 @@ export type ThemeKit = {
   titleLayout?: TitleLayoutPreset;
   supportCopy?: SupportCopyPreset;
   background: Asset;
-  title: Asset;
+  title?: Asset;
   splitTitle?: {
     asa: Asset;
     katsu: Asset;

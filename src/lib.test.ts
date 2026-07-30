@@ -228,6 +228,26 @@ describe("thumbnail project model", () => {
     expect(restored.find((layer) => layer.id === title.id)?.visible).toBe(true);
   });
 
+  it("assembles and positions a split theme without generating a combined 朝活 image", () => {
+    const base = createTitleLayer();
+    const image = {
+      ...base,
+      kind: "image" as const,
+      src: "/asset.png",
+      assetType: "texts" as const,
+    };
+    const background = { ...image, id: "background", assetType: "backgrounds" as const, themeRole: "background" as const };
+    const asa = { ...image, id: "asa", src: "/asa.png", compositionRole: "title-part-asa" as const, themeRole: "title-part-asa" as const, visible: false };
+    const katsu = { ...image, id: "katsu", src: "/katsu.png", compositionRole: "title-part-katsu" as const, themeRole: "title-part-katsu" as const, visible: false };
+
+    const assembled = replaceThemeKitLayers([], background, [], undefined, [asa, katsu]);
+    const arranged = applyTitleLayout(assembled, "split-character");
+
+    expect(arranged.map((layer) => layer.id)).toEqual(["background", "asa", "katsu"]);
+    expect(arranged.filter((layer) => layer.compositionRole === "main-title")).toHaveLength(0);
+    expect(arranged.filter((layer) => layer.compositionRole === "title-part-asa" || layer.compositionRole === "title-part-katsu").every((layer) => layer.visible)).toBe(true);
+  });
+
   it("refuses split layout when separately generated character assets are absent", () => {
     const base = createTitleLayer();
     const title = { ...base, kind: "image" as const, src: "/title.png", assetType: "texts" as const, compositionRole: "main-title" as const };

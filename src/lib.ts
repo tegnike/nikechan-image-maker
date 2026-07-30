@@ -227,15 +227,15 @@ function placeSupportCopy<T extends StudioLayer>(layer: T, layers: StudioLayer[]
 
 export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPreset): StudioLayer[] {
   const source = findMainTitle(layers);
-  if (!source) return layers;
   const asa = layers.find((layer) => layer.compositionRole === "title-part-asa");
   const katsu = layers.find((layer) => layer.compositionRole === "title-part-katsu");
   if (preset === "split-character" && (!asa || !katsu)) {
-    return applyTitleLayout(layers, "side-by-side");
+    return source ? applyTitleLayout(layers, "side-by-side") : layers;
   }
+  if (preset !== "split-character" && !source) return layers;
 
   let next = layers.map((layer) => {
-    if (layer.id === source.id) {
+    if (source && layer.id === source.id) {
       return { ...layer, compositionRole: "main-title" as const, visible: preset !== "split-character" };
     }
     if (isTitlePart(layer)) return { ...layer, visible: preset === "split-character" };
@@ -254,7 +254,7 @@ export function applyTitleLayout(layers: StudioLayer[], preset: TitleLayoutPrese
 
   if (preset === "diagonal-impact") {
     next = next.map((layer) => {
-      if (layer.id === source.id) {
+      if (source && layer.id === source.id) {
         return { ...fitLayerInBox(layer, { x: 10, y: 36, width: 900, height: 590 }, 0, 0.5), rotation: -12 };
       }
       if (layer.id === character?.id) {
@@ -338,6 +338,7 @@ export function analyzeThumbnail(layers: StudioLayer[]) {
   const background = layers.find((layer) => layer.kind === "image" && layer.assetType === "backgrounds");
   const title = layers.find(
     (layer) => layer.compositionRole !== "support-copy"
+      && layer.visible
       && (layer.kind === "text" || (layer.kind === "image" && layer.assetType === "texts")),
   );
   const checks = [
@@ -380,7 +381,7 @@ export function replaceThemeKitLayers(
   layers: StudioLayer[],
   background: ImageLayer,
   accents: StudioLayer[],
-  title: ImageLayer,
+  title?: ImageLayer,
   titleParts: ImageLayer[] = [],
   supports: ImageLayer[] = [],
 ): StudioLayer[] {
@@ -393,7 +394,7 @@ export function replaceThemeKitLayers(
     })
     .filter((layer) => layer.compositionRole !== "support-copy")
     .filter((layer) => !isTitlePart(layer));
-  return [background, ...remaining, ...accents, title, ...titleParts, ...supports];
+  return [background, ...remaining, ...accents, ...(title ? [title] : []), ...titleParts, ...supports];
 }
 
 export function scaleLayerFromCenter<T extends StudioLayer>(layer: T, factor: number): T {

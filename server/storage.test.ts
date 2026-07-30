@@ -210,4 +210,39 @@ describe("thumbnail library storage", () => {
       supports: { casual: { assetPath: "texts/support.png" } },
     });
   });
+
+  it("loads a split theme made from only two independently generated title images", async () => {
+    await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      themes: [{
+        id: "two-part-theme",
+        name: "Two Part Theme",
+        category: "朝活",
+        concept: "character between two generated characters",
+        palette: ["#112233"],
+        shapeLanguage: "bold split forms",
+        titleLayout: "split-character",
+        supportCopy: "none",
+        backgroundAssetPath: "backgrounds/background.png",
+        splitTitleAssetPaths: {
+          asa: "texts/asa.png",
+          katsu: "texts/katsu.png",
+        },
+        createdAt: new Date().toISOString(),
+      }],
+    }));
+
+    const themes = await storage.listThemeKits();
+    expect(themes).toHaveLength(1);
+    expect(themes[0]).toMatchObject({
+      titleLayout: "split-character",
+      title: undefined,
+      splitTitle: {
+        asa: { assetPath: "texts/asa.png" },
+        katsu: { assetPath: "texts/katsu.png" },
+      },
+      supports: {},
+    });
+  });
 });

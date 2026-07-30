@@ -415,6 +415,9 @@ function App() {
     project.layers.some((layer) => layer.compositionRole === "title-part-asa")
     && project.layers.some((layer) => layer.compositionRole === "title-part-katsu")
   ), [project.layers]);
+  const hasGeneratedMainTitle = useMemo(() => project.layers.some(
+    (layer) => layer.kind === "image" && layer.compositionRole === "main-title",
+  ), [project.layers]);
   const generatedSupportPresets = useMemo(() => new Set(project.layers.flatMap((layer) => (
     layer.kind === "image" && layer.compositionRole === "support-copy" && layer.supportCopyPreset
       ? [layer.supportCopyPreset]
@@ -673,7 +676,7 @@ function App() {
       const supportEntries = Object.entries(theme.supports || {}) as [GeneratedSupportCopyPreset, Asset][];
       const [backgroundLayer, titleLayer, titlePartLayers, supportLayers, accentLayers] = await Promise.all([
         buildAssetLayer(theme.background),
-        buildAssetLayer(theme.title),
+        theme.title ? buildAssetLayer(theme.title) : Promise.resolve(undefined),
         theme.splitTitle
           ? Promise.all([
             buildAssetLayer(theme.splitTitle.asa),
@@ -697,9 +700,9 @@ function App() {
           };
         })),
       ]);
-      if (backgroundLayer.kind !== "image" || titleLayer.kind !== "image") throw new Error("Invalid theme assets");
+      if (backgroundLayer.kind !== "image" || (titleLayer && titleLayer.kind !== "image")) throw new Error("Invalid theme assets");
       const background = { ...backgroundLayer, themeRole: "background" as const };
-      const title = { ...titleLayer, themeRole: "title" as const, compositionRole: "main-title" as const };
+      const title = titleLayer ? { ...titleLayer, themeRole: "title" as const, compositionRole: "main-title" as const } : undefined;
       const splitParts = titlePartLayers.flatMap((layer, index) => layer.kind === "image" ? [{
         ...layer,
         name: `${index === 0 ? "朝" : "活"} · 独立生成タイトル`,
@@ -715,6 +718,8 @@ function App() {
         supportCopyPreset: preset,
         visible: false,
       }] : []);
+      if (theme.titleLayout === "split-character" && splitParts.length !== 2) throw new Error("Missing split title assets");
+      if (theme.titleLayout !== "split-character" && !title) throw new Error("Missing main title asset");
       commitProject((current) => {
         const assembled = replaceThemeKitLayers(current.layers, background, accentLayers, title, splitParts, generatedSupports);
         const templated = applyThumbnailTemplate(assembled, "character-right");
@@ -724,11 +729,10 @@ function App() {
           layers: applyGeneratedSupportCopy(laidOut, theme.supportCopy || "none"),
         };
       });
-      setSelectedId(theme.titleLayout === "split-character" ? null : title.id);
-      const splitLabel = splitParts.length === 2 ? "・独立文字2点" : "";
-      const supportLabel = generatedSupports.length ? `・生成補助文字${generatedSupports.length}点` : "";
+      setSelectedId(theme.titleLayout === "split-character" ? null : title?.id || null);
+      const textAssetCount = (title ? 1 : 0) + splitParts.length + generatedSupports.length;
       const accentLabel = accentLayers.length ? `・アクセント${accentLayers.length}点` : "";
-      setStatus(`${theme.name} を背景・文字${splitLabel}${supportLabel}${accentLabel}セットで追加しました`);
+      setStatus(`${theme.name} を背景・生成文字${textAssetCount}点${accentLabel}セットで追加しました`);
     } catch {
       setStatus(`${theme.name} を読み込めませんでした`);
     }
@@ -754,6 +758,10 @@ function App() {
     const hasKatsu = project.layers.some((layer) => layer.compositionRole === "title-part-katsu");
     if (preset === "split-character" && (!hasAsa || !hasKatsu)) {
       setStatus("独立生成された「朝」と「活」があるテーマでのみ分割配置できます");
+      return;
+    }
+    if (preset !== "split-character" && !project.layers.some((layer) => layer.compositionRole === "main-title")) {
+      setStatus("生成された「朝活」があるテーマでのみ斜め配置できます");
       return;
     }
     commitProject((current) => ({ ...current, layers: applyTitleLayout(current.layers, preset) }));
@@ -949,7 +957,7 @@ function App() {
             <button className={assetType === "characters" ? "active" : ""} onClick={() => setAssetType("characters")}>キャラクター</button>
           </div>
           <div className="asset-tip">
-            {assetType === "themes" && "文字を切断・フォント合成せず、生成済みの「朝活」・「朝」・「活」・補助文字を配置します。"}
+            {assetType === "themes" && "文字を切断・フォント合成せず、テーマごとに選ばれた生成文字2点だけを配置します。"}
             {assetType === "characters" && "透過PNGを推奨。クリックするとキャンバスへ追加します。"}
           </div>
           {assetType === "themes" ? (
@@ -976,12 +984,12 @@ function App() {
                         <img className="theme-title-part theme-title-asa" src={theme.splitTitle.asa.url} alt="" />
                         <img className="theme-title-part theme-title-katsu" src={theme.splitTitle.katsu.url} alt="" />
                       </>
-                    ) : <img className="theme-title" src={theme.title.url} alt="" />}
+                    ) : theme.title ? <img className="theme-title" src={theme.title.url} alt="" /> : null}
                     {defaultThemeSupport(theme) ? <img className="theme-support" src={defaultThemeSupport(theme)?.url} alt="" /> : null}
                   </div>
                   <div className="theme-info">
                     <strong>{theme.name}</strong>
-                    <span>{theme.category} · 背景＋生成文字{theme.splitTitle ? "3点" : "1点"}＋生成補助{Object.keys(theme.supports).length}点{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
+                    <span>{theme.category} · 背景＋生成文字{(theme.title ? 1 : 0) + (theme.splitTitle ? 2 : 0) + Object.keys(theme.supports).length}点{(theme.accents || []).some((accent) => accent.role === "foreground-accent")
                       ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
                       : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
                     {theme.titleLayout || defaultThemeSupport(theme) ? (
@@ -1028,7 +1036,11 @@ function App() {
                 title={hasGeneratedSplitTitle ? "独立生成した朝・活を配置" : "独立生成した朝・活が必要です"}
                 onClick={() => applyTitleComposition("split-character")}
               >朝｜人物｜活</button>
-              <button onClick={() => applyTitleComposition("diagonal-impact")}>斜め大文字</button>
+              <button
+                disabled={!hasGeneratedMainTitle}
+                title={hasGeneratedMainTitle ? "生成した朝活を斜めに配置" : "生成された朝活が必要です"}
+                onClick={() => applyTitleComposition("diagonal-impact")}
+              >斜め大文字</button>
             </div>
             <div className="preset-group finish-group">
               <span>補助</span>
