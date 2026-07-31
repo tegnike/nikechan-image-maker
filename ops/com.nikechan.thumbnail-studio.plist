@@ -6,19 +6,24 @@
   <string>com.nikechan.thumbnail-studio</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/your-name/WorkSpace/nikechan-image-maker/scripts/serve-production.zsh</string>
+    <string>__PROJECT_DIR__/scripts/serve-production.zsh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/your-name/WorkSpace/nikechan-image-maker</string>
+  <string>__PROJECT_DIR__</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_BIN</key>
+    <string>__NODE_BIN__</string>
+  </dict>
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>/Users/your-name/Library/Logs/nikechan-thumbnail-studio/output.log</string>
+  <string>__LOG_DIR__/nikechan-thumbnail-studio-output.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/your-name/Library/Logs/nikechan-thumbnail-studio/error.log</string>
+  <string>__LOG_DIR__/nikechan-thumbnail-studio-error.log</string>
 </dict>
 </plist>

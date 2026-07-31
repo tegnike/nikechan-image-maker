@@ -2,7 +2,7 @@ version = 1
 id = "ai-t7-10"
 kind = "cron"
 name = "AIニケちゃん サムネイル素材 10分"
-prompt = "作業場所 /Users/your-name/WorkSpace/nikechan-image-maker にある automations/ai-t7-10/workflow.md を最初から最後まで読み、書かれた手順に従って生成スロットを1つだけ実行してください。workflow.mdをこの自動処理の正本として扱い、要約や旧手順で代用しないでください。"
+prompt = "作業ディレクトリにある automations/ai-t7-10/workflow.md を最初から最後まで読み、書かれた手順に従って生成スロットを1つだけ実行してください。workflow.mdをこの自動処理の正本として扱い、要約や旧手順で代用しないでください。"
 status = "ACTIVE"
 rrule = "RRULE:FREQ=MINUTELY;INTERVAL=5"
 model = "gpt-5.5"
@@ -10,6 +10,6 @@ reasoning_effort = "medium"
 notification_policy = "failed_runs_only"
 execution_environment = "local"
 target = { type = "project", project_id = "REPLACE_WITH_YOUR_CODEX_PROJECT_ID" }
-cwds = ["/Users/your-name/WorkSpace/nikechan-image-maker"]
+cwds = ["/absolute/path/to/nikechan-image-maker"]
 created_at = 1785155686079
 updated_at = 1785322910921

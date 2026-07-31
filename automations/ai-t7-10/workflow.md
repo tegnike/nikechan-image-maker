@@ -2,25 +2,25 @@
 
 この文書を最後まで読み、1回の起動につき以下の生成スロットを1つだけ実行する。
 
-## 固定パス
+## 実行時に解決するパス
 
-- 作業場所: `/Users/your-name/WorkSpace/nikechan-image-maker`
-- 参照画像A: `/Users/your-name/WorkSpace/nikechan-image-maker/references/nikechan-model-sheet.png`
-- 参照画像B: `/Users/your-name/WorkSpace/nikechan-image-maker/references/nikechan-model-sheet-piercing.png`
-- 参照画像C: `/Users/your-name/WorkSpace/nikechan-image-maker/references/nikechan-model-sheet-outer-piercing.png`
-- 保存ルート: `/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker`
+- 作業場所: automationに設定されたcwd。`git rev-parse --show-toplevel`でリポジトリルートを確認する。
+- 参照画像A: `references/nikechan-model-sheet.png`
+- 参照画像B: `references/nikechan-model-sheet-piercing.png`
+- 参照画像C: `references/nikechan-model-sheet-outer-piercing.png`
+- 保存ルート: 環境変数`THUMBNAIL_LIBRARY_ROOT`で指定された絶対パス。未exportならGit管理外の`.env`から同名設定を読む。
 - 素材: `assets/{characters,backgrounds,texts,decorations}/YYYY/MM/DD/`
 - プロンプト記録: `prompts/YYYY/MM/DD/`
 - 索引: `index.jsonl`
 - 完成テーマ正本: `theme-kits.json`
 - 頭部アンカー正本: `head-anchors.json`
-- 透過処理: `/Users/your-name/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py`
-- 旧完成画像: `/Volumes/EXTERNAL_VOLUME/ニケ/imagegen`（読み取り専用）
+- 透過処理: 現在読み込んだimagegenスキルに付属する`remove_chroma_key.py`
+- 旧完成画像: `LEGACY_IMAGE_ROOT`が設定されている場合だけ読み取り専用で参照する
 - 実例サムネイル参照: `references/vtuber-thumbnails/YYYY/MM/DD/`
 
 ## 実行前と生成回数
 
-1. `/Volumes/EXTERNAL_VOLUME` が実際にマウントされ、保存ルートと必要な参照画像が利用できることを確認する。不足時はローカルへ代替保存せず失敗終了する。
+1. `THUMBNAIL_LIBRARY_ROOT`が設定された絶対パスで、保存ルートと必要な参照画像が利用できることを確認する。外付けボリューム上なら実際にマウントされていることも確認する。不足時は別の場所へ代替保存せず失敗終了する。
 2. Codex標準imagegenスキルを完全に読み、内蔵`image_gen`を使う。1runにつき呼び出しは1回だけ。生成失敗時は再生成せず失敗終了する。
 3. `index.jsonl`のうち、下記13スロットのいずれかを持つ最終行から次のスロットを循環する。現行外の旧title、title-asa、title-katsu、support系スロットは履歴としては保持するが、現在位置判定から除外する。
 

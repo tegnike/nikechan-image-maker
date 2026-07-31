@@ -58,8 +58,10 @@ def png_size(path: Path) -> tuple[int, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--library-root", type=Path, default=Path("/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker"))
+    parser.add_argument("--library-root", type=Path, default=os.environ.get("THUMBNAIL_LIBRARY_ROOT"))
     args = parser.parse_args()
+    if args.library_root is None:
+        parser.error("--library-root or THUMBNAIL_LIBRARY_ROOT is required")
     target = args.library_root / "head-anchors.json"
     existing = {"version": 1, "updatedAt": "", "anchors": {}}
     if target.exists():

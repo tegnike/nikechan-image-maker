@@ -4,6 +4,8 @@ dist/
 coverage/
 tmp/
 *.log
+__pycache__/
+*.pyc
 .env
 references/vtuber-thumbnails/
 tmp-ai-t7-10-*.json

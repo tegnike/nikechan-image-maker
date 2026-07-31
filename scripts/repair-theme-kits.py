@@ -55,12 +55,14 @@ def atomic_json(path: Path, payload: object) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--library-root", type=Path, default=Path("/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker"))
+    parser.add_argument("--library-root", type=Path, default=os.environ.get("THUMBNAIL_LIBRARY_ROOT"))
     parser.add_argument("--backup", type=Path, action="append", default=[])
     parser.add_argument("--exclude-theme", action="append", default=[])
     parser.add_argument("--drop-accent-role", action="append", default=[])
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
+    if args.library_root is None:
+        parser.error("--library-root or THUMBNAIL_LIBRARY_ROOT is required")
 
     root = args.library_root.resolve()
     manifest_path = root / "theme-kits.json"

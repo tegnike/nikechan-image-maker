@@ -31,9 +31,11 @@ def atomic_json(path: Path, payload: object) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--library-root", type=Path, default=Path("/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker"))
+    parser.add_argument("--library-root", type=Path, default=os.environ.get("THUMBNAIL_LIBRARY_ROOT"))
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
+    if args.library_root is None:
+        parser.error("--library-root or THUMBNAIL_LIBRARY_ROOT is required")
     root = args.library_root.resolve()
     if root == Path("/") or not (root / "theme-kits.json").is_file() or not (root / "index.jsonl").is_file():
         raise SystemExit(f"refusing unexpected library root: {root}")

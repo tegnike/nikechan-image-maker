@@ -18,19 +18,29 @@
 
 - macOS
 - Node.js 22系とnpm
-- 素材ライブラリを保存したT7ボリューム
+- 素材ライブラリ用の書き込み可能なディレクトリ
 - ChatGPTでログイン済みのCodexアプリまたはCodex CLI
 
-標準の素材ライブラリは `/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker` です。T7が未接続の場合、別のローカルディスクへ自動退避せず起動を停止します。
+素材ライブラリの保存先は利用者が選び、Git管理外の `.env` に `THUMBNAIL_LIBRARY_ROOT` として設定します。リポジトリには作者の保存先、ユーザー名、CodexプロジェクトIDを含めません。
 
-このリポジトリにはマスターのローカル環境向け絶対パス、LaunchAgent、T7構成が含まれます。別環境で使う場合は、保存先、Node.jsパス、参照画像パス、automation targetを環境に合わせて変更してください。
+## Codexにセットアップを任せる
+
+リポジトリ直下の [`AGENTS.md`](AGENTS.md) には、Codexが自動で読むプロジェクト固有の指示を用意しています。クローン後、このフォルダをCodexアプリまたはCodex CLIで開き、次のように依頼してください。
+
+```text
+AGENTS.mdとdocs/SETUP.mdを読み、現在の環境を調べて、このアプリをセットアップしてください。安全に実行できる作業は進め、最後に素材の保存先、起動URL、Codex画像修正の利用可否、検証結果を報告してください。OpenAI Platform APIは使わないでください。
+```
+
+Codexが環境確認、依存関係の導入、保存先の決定、起動、ヘルスチェックまで対話的に進めます。詳しい手順と別環境での保存先設定は [`docs/SETUP.md`](docs/SETUP.md) を参照してください。
 
 ## 起動
 
 ### 開発モード
 
 ```bash
-npm install
+npm ci
+cp .env.example .env
+# .envのTHUMBNAIL_LIBRARY_ROOTを自分の保存先へ変更
 npm run dev
 ```
 
@@ -51,7 +61,7 @@ PORT=4179 THUMBNAIL_LIBRARY_ROOT=/absolute/path/to/library npm run dev
 
 ## 常用LaunchAgent
 
-常用環境では `com.nikechan.thumbnail-studio` LaunchAgentがログイン時に起動し、停止時も自動再起動します。T7が外れている間は10秒間隔で待機し、再接続後に配信を開始します。
+常用環境では `com.nikechan.thumbnail-studio` LaunchAgentを使ってログイン時に起動できます。公開されているplistはテンプレートなので、`__PROJECT_DIR__` と `__LOG_DIR__` を自分の環境に合わせて置換してから登録してください。
 
 ```bash
 launchctl kickstart -k gui/$(id -u)/com.nikechan.thumbnail-studio
@@ -92,7 +102,7 @@ launchctl print gui/$(id -u)/com.nikechan.thumbnail-studio
 - 320×180縮小プレビュー
 - 人物、主題文字、背景、分離、密度、大きさを確認する7項目の構成チェック
 - プロジェクトJSONの保存・再読込
-- 1280×720 PNGのT7保存とブラウザダウンロード
+- 1280×720 PNGの素材ライブラリ保存とブラウザダウンロード
 
 ### テーマキット
 
@@ -123,8 +133,8 @@ launchctl print gui/$(id -u)/com.nikechan.thumbnail-studio
 既存素材のアンカーを補修するスクリプトも用意しています。
 
 ```bash
-python3 scripts/backfill-head-anchors.py
-python3 scripts/repair-head-anchors.py
+python3 scripts/backfill-head-anchors.py --library-root /your/own/absolute/path/to/thumbnail-library
+python3 scripts/repair-head-anchors.py --library-root /your/own/absolute/path/to/thumbnail-library
 ```
 
 ### 画像の仕上げ
@@ -169,8 +179,10 @@ Codex実行ファイルは、Codexアプリ同梱版、実行中Node.jsと同じ
 
 ## 保存先
 
+次の構成は `.env` の `THUMBNAIL_LIBRARY_ROOT` で指定したディレクトリ内に作成されます。
+
 ```text
-/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker/
+$THUMBNAIL_LIBRARY_ROOT/
 ├── assets/
 │   ├── characters/YYYY/MM/DD/
 │   ├── backgrounds/YYYY/MM/DD/
@@ -198,7 +210,7 @@ Codex実行ファイルは、Codexアプリ同梱版、実行中Node.jsと同じ
 - `exports/`: 書き出した完成PNG
 - `codex-edits/`: Codex画像修正の入力、結果、状態、最終回答
 
-旧完成画像 `/Volumes/EXTERNAL_VOLUME/ニケ/imagegen` は読み取り専用として扱い、このアプリから変更しません。
+任意の旧完成画像を参照する場合は、リポジトリへパスを書かず、ローカル環境の `LEGACY_IMAGE_ROOT` で指定します。
 
 ## 素材生成スケジューラ
 
@@ -240,7 +252,7 @@ theme-a-background
 
 参照した公開サムネイルとsource JSONは `references/vtuber-thumbnails/YYYY/MM/DD/` に保存します。このフォルダはスケジューラの作業成果であり、通常のアプリ変更では編集・削除しません。
 
-ライブ設定は `/Users/your-name/.codex/automations/ai-t7-10/automation.toml` にあります。変更時はCodexアプリのautomation更新機能を使い、リポジトリ側のスナップショットも同じ内容へ揃えます。
+リポジトリ内の `automation.toml` は公開用テンプレートです。利用時はCodexアプリのautomation機能で、自分のCodexプロジェクトとクローン先を設定してください。個人環境のパスやプロジェクトIDはコミットしません。
 
 ## 検証
 
@@ -258,7 +270,7 @@ UI変更では、コードやDOMだけでなく、実ブラウザでクリック
 - [`src/lib.ts`](src/lib.ts): 配置、置換、正規化、構成チェック
 - [`src/types.ts`](src/types.ts): プロジェクト、レイヤー、テーマ、Codexジョブの型
 - [`server/index.ts`](server/index.ts): ローカルHTTP API
-- [`server/storage.ts`](server/storage.ts): T7素材・プロジェクト・テーマの保存
+- [`server/storage.ts`](server/storage.ts): 素材・プロジェクト・テーマの保存
 - [`server/codex-edits.ts`](server/codex-edits.ts): ChatGPTサブスクリプション限定のCodex画像修正
 - [`automations/ai-t7-10/workflow.md`](automations/ai-t7-10/workflow.md): 素材生成契約
 
@@ -270,7 +282,7 @@ UI変更では、コードやDOMだけでなく、実ブラウザでクリック
 
 - `references/` 以下のAIニケちゃんモデルシートと画像
 - AIニケちゃんのキャラクターデザイン、名称、ロゴ、ブランド要素
-- T7素材ライブラリ内の生成画像、プロンプト記録、完成画像
+- 利用者の素材ライブラリ内の生成画像、プロンプト記録、完成画像
 - `references/vtuber-thumbnails/` へ取得する外部VTuber／YouTubeサムネイル
 
 これらの画像・キャラクター・第三者コンテンツには、それぞれの権利者の権利が残ります。再利用や再配布の許諾をMIT Licenseから得ることはできません。

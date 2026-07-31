@@ -2,18 +2,12 @@
 
 set -euo pipefail
 
-readonly PROJECT_DIR="/Users/your-name/WorkSpace/nikechan-image-maker"
-readonly NODE_BIN="/Users/your-name/.nvm/versions/node/v22.21.1/bin/node"
+readonly PROJECT_DIR="${0:A:h:h}"
+readonly NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
 readonly TSX_CLI="$PROJECT_DIR/node_modules/tsx/dist/cli.mjs"
 
-# The asset library lives on T7. Stay alive while the disk is detached and
-# start serving automatically as soon as it is mounted again.
-until /sbin/mount | /usr/bin/grep -Fq " on /Volumes/EXTERNAL_VOLUME "; do
-  /bin/sleep 10
-done
-
-if [[ ! -x "$NODE_BIN" ]]; then
-  print -u2 "Node.js was not found: $NODE_BIN"
+if [[ -z "$NODE_BIN" || ! -x "$NODE_BIN" ]]; then
+  print -u2 "Node.js was not found. Set NODE_BIN or add Node.js to PATH."
   exit 1
 fi
 

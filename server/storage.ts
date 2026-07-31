@@ -1,13 +1,22 @@
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, existsSync } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { loadEnvFile } from "node:process";
 import type { Asset, AssetType, GeneratedSupportCopyPreset, HeadAnchor, ImageLayer, ProjectSummary, SupportCopyPreset, ThemeAccentRole, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "../src/types";
 import { remapHeadAnchorToCrop } from "../src/lib";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
-export const LIBRARY_ROOT = path.resolve(
-  process.env.THUMBNAIL_LIBRARY_ROOT || "/Volumes/EXTERNAL_VOLUME/ニケ/thumbnail-maker",
-);
+const localEnvPath = path.join(PROJECT_ROOT, ".env");
+if (existsSync(localEnvPath)) loadEnvFile(localEnvPath);
+
+const configuredLibraryRoot = process.env.THUMBNAIL_LIBRARY_ROOT?.trim();
+if (!configuredLibraryRoot) {
+  throw new Error("THUMBNAIL_LIBRARY_ROOT is required. Copy .env.example to .env and choose your own storage path.");
+}
+if (!path.isAbsolute(configuredLibraryRoot)) {
+  throw new Error("THUMBNAIL_LIBRARY_ROOT must be an absolute path.");
+}
+export const LIBRARY_ROOT = path.resolve(configuredLibraryRoot);
 export const ASSETS_ROOT = path.join(LIBRARY_ROOT, "assets");
 export const PROJECTS_ROOT = path.join(LIBRARY_ROOT, "projects");
 export const EXPORTS_ROOT = path.join(LIBRARY_ROOT, "exports");
