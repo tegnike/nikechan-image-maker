@@ -1,9 +1,9 @@
 # Automations
 
-このディレクトリには、AIニケちゃん Thumbnail Studioと一緒に運用するCodexスケジューラ定義のGit管理用スナップショットを保存します。
+このディレクトリには、Thumbnail Studioと一緒に運用するCodexスケジューラの公開用テンプレートを保存します。
 
-- `ai-t7-10/automation.toml`: 「AIニケちゃん サムネイル素材 10分」の現在の定義
-- `ai-t7-10/workflow.md`: 背景・「朝活」文字・テーマアクセントを一体で生成する実行手順の正本
+- `ai-t7-10/automation.toml`: automation登録用テンプレート
+- `ai-t7-10/workflow.md`: `studio.config.json` に従って背景・文字・部分フレーム・キャラクターを生成する共通契約
 - ライブ設定: 各利用者のCodexアプリ内automation（リポジトリには保存しない）
 
-ライブ設定の変更にはCodexアプリのautomation更新機能を使います。リポジトリ内の `automation.toml` は公開用テンプレートであり、`project_id` と `cwds` のプレースホルダーを各自の環境で置き換えて登録します。個人環境の値はリポジトリへコミットしません。
+セットアップ時に、用途、生成文字、キャラクター、検索語、1サイクルの素材数、実行間隔を利用者と決めます。公開サムネイルは一時的な構成分析にだけ使い、画像生成へ直接渡しません。Codexアプリでautomationを登録するときは、テンプレートの `project_id`、`cwds`、`rrule` をローカル設定に合わせます。個人環境の値はリポジトリへコミットしません。

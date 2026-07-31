@@ -29,6 +29,7 @@ import {
   startCodexEdit,
 } from "./codex-edits";
 import type { AssetType, ThumbnailProject } from "../src/types";
+import { loadStudioConfig } from "./studio-config";
 
 const app = express();
 const port = Number(process.env.PORT || 4178);
@@ -41,6 +42,7 @@ const upload = multer({
 });
 
 await ensureLibrary();
+const studioConfig = await loadStudioConfig();
 
 app.use(express.json({ limit: "30mb" }));
 app.use("/library-assets", express.static(ASSETS_ROOT, { fallthrough: false, maxAge: "1m" }));
@@ -48,6 +50,10 @@ app.use("/reference-assets", express.static(REFERENCES_ROOT, { fallthrough: fals
 
 app.get("/api/health", async (_request, response) => {
   response.json({ ok: true, libraryRoot: LIBRARY_ROOT, ...(await libraryHealth()) });
+});
+
+app.get("/api/config", (_request, response) => {
+  response.json({ config: studioConfig });
 });
 
 app.get("/api/assets", async (request, response) => {

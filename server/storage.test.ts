@@ -32,18 +32,18 @@ describe("thumbnail library storage", () => {
 
   it("saves, lists, and reloads an editable project", async () => {
     const project = createEmptyProject();
-    project.name = "朝活テスト";
+    project.name = "配信テスト";
     const saved = await storage.saveProject(project);
     const listed = await storage.listProjects();
     const loaded = await storage.loadProject(saved.id);
-    expect(listed).toContainEqual(expect.objectContaining({ id: saved.id, name: "朝活テスト" }));
+    expect(listed).toContainEqual(expect.objectContaining({ id: saved.id, name: "配信テスト" }));
     expect(loaded.layers).toEqual([]);
   });
 
   it("keeps Japanese names readable and strips path separators", () => {
-    expect(storage.safeId("朝活サムネイル・シンプル構成")).toBe("朝活サムネイル-シンプル構成");
+    expect(storage.safeId("配信サムネイル・シンプル構成")).toBe("配信サムネイル-シンプル構成");
     expect(storage.safeId("../../escape")).toBe("escape");
-    expect(storage.safeFileName("朝活/背景?.png")).toBe("背景-.png");
+    expect(storage.safeFileName("配信/背景?.png")).toBe("背景-.png");
   });
 
   it("attaches stored head anchors to character assets", async () => {
@@ -108,7 +108,7 @@ describe("thumbnail library storage", () => {
       themes: [{
         id: "theme-test",
         name: "Theme Test",
-        category: "朝活",
+        category: "test-category",
         concept: "coherent test theme",
         palette: ["#112233", "#ddeeff"],
         shapeLanguage: "large curves",
@@ -168,7 +168,7 @@ describe("thumbnail library storage", () => {
       {
         id: "recovered-theme",
         name: "Recovered Theme",
-        category: "朝活",
+        category: "test-category",
         concept: "recoverable theme",
         palette: ["#112233"],
         shapeLanguage: "curves",
@@ -190,7 +190,7 @@ describe("thumbnail library storage", () => {
       themes: [{
         id: "legacy-theme",
         name: "Legacy Theme",
-        category: "朝活",
+        category: "test-category",
         concept: "legacy support migration",
         palette: ["#112233"],
         shapeLanguage: "curves",
@@ -218,7 +218,7 @@ describe("thumbnail library storage", () => {
       themes: [{
         id: "two-part-theme",
         name: "Two Part Theme",
-        category: "朝活",
+        category: "test-category",
         concept: "character between two generated characters",
         palette: ["#112233"],
         shapeLanguage: "bold split forms",
@@ -246,7 +246,7 @@ describe("thumbnail library storage", () => {
     });
   });
 
-  it("loads a diagonal layout from one generated 朝活 logo plus generated support copy", async () => {
+  it("loads a diagonal layout from one generated logo plus generated support copy", async () => {
     const createdAt = new Date().toISOString();
     await writeFile(storage.THEME_KITS_PATH, JSON.stringify({
       version: 1,
@@ -254,7 +254,7 @@ describe("thumbnail library storage", () => {
       themes: [{
         id: "diagonal-logo",
         name: "Diagonal Logo",
-        category: "朝活",
+        category: "test-category",
         concept: "朝 upper-left and 活 lower-right inside one generated logo",
         palette: ["#112233"],
         shapeLanguage: "diagonal rhythm",
@@ -287,7 +287,7 @@ describe("thumbnail library storage", () => {
         {
           id: "valid-theme",
           name: "Valid Theme",
-          category: "朝活",
+          category: "test-category",
           concept: "valid",
           palette: ["#ffffff"],
           shapeLanguage: "simple",
@@ -298,7 +298,7 @@ describe("thumbnail library storage", () => {
         {
           id: "invalid-theme",
           name: "Invalid Theme",
-          category: "朝活",
+          category: "test-category",
           concept: "invalid",
           palette: ["#ffffff"],
           shapeLanguage: "simple",

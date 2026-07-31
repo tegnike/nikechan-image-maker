@@ -22,7 +22,22 @@ Codexはリポジトリ直下の `AGENTS.md` を作業開始時に自動で読�
    AGENTS.mdとdocs/SETUP.mdを読み、現在の環境を調べて、このアプリをセットアップしてください。安全に実行できる作業は進め、最後に素材の保存先、起動URL、Codex画像修正の利用可否、検証結果を報告してください。OpenAI Platform APIは使わないでください。
    ```
 
-Codexは環境を確認し、不足している依存関係の導入、素材保存先の決定、アプリ起動、ヘルスチェックを進めます。外付けボリューム、LaunchAgent、素材生成automationの登録は環境固有なので、必要性を確認せず勝手に設定しません。
+Codexは環境を確認し、不足している依存関係の導入、素材保存先と制作内容の決定、ローカル設定の作成、アプリ起動、ヘルスチェックを進めます。外付けボリューム、LaunchAgent、素材生成automationの登録は環境固有なので、利用者の回答なしに作者の設定を流用しません。
+
+## セットアップで決めること
+
+セットアップ時、Codexは次をまとめて確認します。
+
+- スタジオ名、チャンネル／キャラクター名、初期プロジェクト名
+- 作りたいサムネイルの用途・カテゴリ
+- 画像として生成する主文字
+- 2文字分割や対角ロゴを使う場合の2文字
+- 補助文字候補と利用する文字レイアウト
+- キャラクター参照画像と外見上の必須条件
+- 参考にする公開サムネイルの検索語
+- 1サイクルのテーマ数、キャラクター数、生成間隔
+
+回答はGit管理外の `studio.config.json` に保存されます。リポジトリに含まれるサンプル文字や作者の過去設定を、確認なしに利用者の生成対象へしません。
 
 ## 対応環境
 
@@ -74,9 +89,10 @@ THUMBNAIL_LIBRARY_ROOT=/your/own/absolute/path/to/thumbnail-library
 
 ```bash
 npm ci
+cp studio.config.example.json studio.config.json
 ```
 
-`.env` へ自分の保存先を設定してから起動します。
+`.env` へ自分の保存先を設定し、`studio.config.json` のサンプル値をすべて自分の用途へ変更してから起動します。
 
 ```bash
 npm run dev
@@ -92,6 +108,7 @@ THUMBNAIL_LIBRARY_ROOT="/absolute/path/to/library" npm run dev
 
 ```bash
 curl http://127.0.0.1:4178/api/health
+curl http://127.0.0.1:4178/api/config
 ```
 
 ブラウザでは [http://127.0.0.1:4178](http://127.0.0.1:4178) を開きます。本番相当で起動する場合は次を使います。
@@ -121,7 +138,7 @@ codex login status
 
 `ops/com.nikechan.thumbnail-studio.plist` は公開用テンプレートです。`__PROJECT_DIR__`、`__LOG_DIR__`、`__NODE_BIN__` を自分の環境に合わせて置換してから登録してください。常駐化する場合はCodexへ環境に合わせたコピーの作成と内容確認を依頼できます。
 
-同様に、`automations/ai-t7-10/automation.toml` はプレースホルダーだけを含む公開用テンプレートです。素材生成を有効にしたい場合は、先に `automations/ai-t7-10/workflow.md` を確認し、Codexアプリから自分のプロジェクトとクローン先を対象にautomationを作成してください。
+同様に、`automations/ai-t7-10/automation.toml` はプレースホルダーだけを含む公開用テンプレートです。素材生成を有効にしたい場合は、先に `studio.config.json` と `automations/ai-t7-10/workflow.md` を確認し、設定した素材数・生成間隔で、自分のCodexプロジェクトを対象にautomationを作成してください。
 
 ## セットアップ後の検証
 

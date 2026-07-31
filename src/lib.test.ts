@@ -28,7 +28,7 @@ describe("thumbnail project model", () => {
     const theme = (id: string, createdAt: string, palette: string[]): ThemeKit => ({
       id,
       name: id,
-      category: "朝活",
+      category: "test-category",
       concept: "test",
       palette,
       shapeLanguage: "test",
@@ -110,7 +110,7 @@ describe("thumbnail project model", () => {
       version: 1 as const,
       id: "20260730T150000Z-result",
       projectId: "project-test",
-      projectName: "朝活サムネイル",
+      projectName: "テストサムネイル",
       instruction: "背景を明るくする",
       status: "completed" as const,
       progress: "修正画像が完成しました",
@@ -234,7 +234,7 @@ describe("thumbnail project model", () => {
     const oldTitle = { ...image, id: "old-title", themeId: "old", themeRole: "title" as const };
     const oldProp = { ...image, id: "old-prop", assetType: "decorations" as const, themeId: "old", themeRole: "prop" as const };
     const character = { ...image, id: "character", assetType: "characters" as const };
-    const supportCopy = { ...base, id: "support-copy", compositionRole: "support-copy" as const, text: "あさかつ" };
+    const supportCopy = { ...base, id: "support-copy", compositionRole: "support-copy" as const, text: "補助文字" };
     const nextBackground = { ...oldBackground, id: "next-background", themeId: "next", themeRole: "background" as const };
     const nextProp = { ...oldProp, id: "next-prop", themeId: "next" };
     const nextTitle = { ...oldTitle, id: "next-title", themeId: "next" };
@@ -277,7 +277,7 @@ describe("thumbnail project model", () => {
     expect(Math.abs(arrangedTitle.width * arrangedTitle.scaleX)).toBeGreaterThan(600);
   });
 
-  it("uses separately generated 朝 and 活 images without cropping the 朝活 image", () => {
+  it("uses separately generated title-part images without cropping a combined title", () => {
     const base = createTitleLayer();
     const title = {
       ...base,
@@ -341,7 +341,7 @@ describe("thumbnail project model", () => {
     expect(restored.find((layer) => layer.id === title.id)?.visible).toBe(true);
   });
 
-  it("assembles and positions a split theme without generating a combined 朝活 image", () => {
+  it("assembles and positions a split theme without generating a combined title image", () => {
     const base = createTitleLayer();
     const image = {
       ...base,
@@ -370,7 +370,7 @@ describe("thumbnail project model", () => {
     expect(arranged[0]).toMatchObject({ src: "/title.png", visible: true, compositionRole: "main-title" });
   });
 
-  it("places a generated diagonal 朝活 logo without rotating the combined image", () => {
+  it("places a generated diagonal logo without rotating the combined image", () => {
     const base = createTitleLayer();
     const title = {
       ...base,

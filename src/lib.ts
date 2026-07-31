@@ -16,12 +16,12 @@ export function createId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function createEmptyProject(): ThumbnailProject {
+export function createEmptyProject(name = "新しいサムネイル"): ThumbnailProject {
   const now = new Date().toISOString();
   return {
     version: 1,
     id: createId("project"),
-    name: "朝活サムネイル",
+    name,
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT,
     backgroundColor: "#fff8e8",
@@ -31,12 +31,12 @@ export function createEmptyProject(): ThumbnailProject {
   };
 }
 
-export function createTitleLayer(): TextLayer {
+export function createTitleLayer(text = "タイトル"): TextLayer {
   return {
     id: createId("text"),
     kind: "text",
     name: "メインタイトル",
-    text: "朝活",
+    text,
     x: 70,
     y: 92,
     width: 610,
