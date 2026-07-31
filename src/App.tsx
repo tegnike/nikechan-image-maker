@@ -26,7 +26,7 @@ import {
 import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Asset, AssetType, CodexEditJob, GeneratedSupportCopyPreset, Health, ProjectSummary, StudioConfig, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
+import type { Asset, AssetType, CodexEditJob, GeneratedSupportCopyPreset, Health, ProjectSummary, StudioLayer, SupportCopyPreset, ThemeAccent, ThemeKit, ThumbnailProject, TitleLayoutPreset } from "./types";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "./types";
 import {
   analyzeThumbnail,
@@ -118,26 +118,20 @@ function visibleImageBounds(image: HTMLImageElement) {
   return { x, y, width: right - x, height: bottom - y };
 }
 
-const fallbackSupportCopyLabels: Record<SupportCopyPreset, string> = {
-  none: "補助なし",
-  stream: "補助文字1",
-  casual: "補助文字2",
-  reading: "補助文字3",
-  english: "補助文字4",
+const titleLayoutLabels: Record<TitleLayoutPreset, string> = {
+  "side-by-side": "人物と左右",
+  "split-character": "朝｜人物｜活",
+  "diagonal-impact": "旧・斜め回転",
+  "diagonal-pair": "一体ロゴ・朝↘活",
 };
 
-function titleLayoutLabel(preset: TitleLayoutPreset, config: StudioConfig | null) {
-  const parts = config?.title.splitParts;
-  if (preset === "side-by-side") return "人物と左右";
-  if (preset === "split-character") return parts ? `${parts[0]}｜人物｜${parts[1]}` : "分割文字｜人物｜分割文字";
-  if (preset === "diagonal-pair") return parts ? `一体ロゴ・${parts[0]}↘${parts[1]}` : "一体ロゴ・対角配置";
-  return "旧・斜め回転";
-}
-
-function supportCopyLabel(preset: SupportCopyPreset, config: StudioConfig | null) {
-  if (preset === "none") return fallbackSupportCopyLabels.none;
-  return config?.title.supportCopies[preset] || fallbackSupportCopyLabels[preset];
-}
+const supportCopyLabels: Record<SupportCopyPreset, string> = {
+  none: "補助なし",
+  stream: "＋配信",
+  casual: "＋するよ！",
+  reading: "＋あさかつ",
+  english: "＋MORNING STREAM",
+};
 
 const themeMoodLabels: Record<ThemeMoodFilter, string> = {
   all: "すべて",
@@ -443,7 +437,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function App() {
   const [project, setProject] = useState<ThumbnailProject>(() => createEmptyProject());
-  const [studioConfig, setStudioConfig] = useState<StudioConfig | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(project.layers.at(-1)?.id || null);
   const [assetType, setAssetType] = useState<LibraryTab>("themes");
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -534,18 +527,12 @@ function App() {
   useEffect(() => {
     Promise.all([
       fetch("/api/health").then((response) => response.json()),
-      fetch("/api/config").then((response) => response.json()),
       assetType === "themes" ? refreshThemes() : refreshAssets(assetType),
       refreshProjects(),
     ])
-      .then(([nextHealth, configPayload]) => {
-        const nextConfig = configPayload.config as StudioConfig;
+      .then(([nextHealth]) => {
         setHealth(nextHealth);
-        setStudioConfig(nextConfig);
-        setProject((current) => current.name === "新しいサムネイル" && current.layers.length === 0
-          ? { ...current, name: nextConfig.defaultProjectName }
-          : current);
-        setStatus(nextHealth.writable ? "素材ライブラリに接続しました" : "素材ライブラリを確認してください");
+        setStatus(nextHealth.writable ? "T7素材ライブラリに接続しました" : "素材ライブラリを確認してください");
       })
       .catch(() => setStatus("アプリの接続を確認してください"));
   }, [assetType, refreshAssets, refreshProjects, refreshThemes]);
@@ -812,14 +799,14 @@ function App() {
       const title = titleLayer ? { ...titleLayer, themeRole: "title" as const, compositionRole: "main-title" as const } : undefined;
       const splitParts = titlePartLayers.flatMap((layer, index) => layer.kind === "image" ? [{
         ...layer,
-        name: `${studioConfig?.title.splitParts?.[index] || (index === 0 ? "前半" : "後半")} · 独立生成タイトル`,
+        name: `${index === 0 ? "朝" : "活"} · 独立生成タイトル`,
         themeRole: index === 0 ? "title-part-asa" as const : "title-part-katsu" as const,
         compositionRole: index === 0 ? "title-part-asa" as const : "title-part-katsu" as const,
         visible: false,
       }] : []);
       const generatedSupports = supportLayers.flatMap(({ preset, layer }) => layer.kind === "image" ? [{
         ...layer,
-        name: `${supportCopyLabel(preset, studioConfig)} · 生成補助文字`,
+        name: `${supportCopyLabels[preset]} · 生成補助文字`,
         themeRole: "support-copy" as const,
         compositionRole: "support-copy" as const,
         supportCopyPreset: preset,
@@ -866,33 +853,33 @@ function App() {
     const hasKatsu = project.layers.some((layer) => layer.compositionRole === "title-part-katsu");
     const usesSplitTitle = preset === "split-character";
     if (usesSplitTitle && (!hasAsa || !hasKatsu)) {
-      setStatus("独立生成された2つの分割文字があるテーマでのみ適用できます");
+      setStatus("独立生成された「朝」と「活」があるテーマでのみ適用できます");
       return;
     }
     if (!usesSplitTitle && !project.layers.some((layer) => layer.compositionRole === "main-title")) {
-      setStatus("生成された主題ロゴがあるテーマでのみ適用できます");
+      setStatus("生成された「朝活」ロゴがあるテーマでのみ適用できます");
       return;
     }
     commitProject((current) => ({ ...current, layers: applyTitleLayout(current.layers, preset) }));
     setSelectedId(null);
-    setStatus(`${titleLayoutLabel(preset, studioConfig)}の主題レイアウトを適用しました`);
+    setStatus(`${titleLayoutLabels[preset]}の主題レイアウトを適用しました`);
   };
 
   const applySupport = (preset: SupportCopyPreset) => {
     if (preset !== "none" && !project.layers.some(
       (layer) => layer.kind === "image" && layer.compositionRole === "support-copy" && layer.supportCopyPreset === preset,
     )) {
-      setStatus(`${supportCopyLabel(preset, studioConfig)}の生成画像がこのテーマにありません`);
+      setStatus(`${supportCopyLabels[preset]}の生成画像がこのテーマにありません`);
       return;
     }
     commitProject((current) => ({ ...current, layers: applyGeneratedSupportCopy(current.layers, preset) }));
     setSelectedId(null);
-    setStatus(`${supportCopyLabel(preset, studioConfig)}を適用しました`);
+    setStatus(`${supportCopyLabels[preset]}を適用しました`);
   };
 
   const applyFinish = (preset: FinishPreset) => {
     commitProject((current) => ({ ...current, layers: applyFinishPreset(current.layers, preset) }));
-    setStatus(preset === "soft-morning" ? "やわらか仕上げを適用しました" : "くっきりポップ仕上げを適用しました");
+    setStatus(preset === "soft-morning" ? "やわらか朝活仕上げを適用しました" : "くっきりポップ仕上げを適用しました");
   };
 
   const trimSelectedImage = () => {
@@ -1108,7 +1095,7 @@ function App() {
   };
 
   const newProject = () => {
-    const next = createEmptyProject(studioConfig?.defaultProjectName);
+    const next = createEmptyProject();
     historyRef.current = [];
     futureRef.current = [];
     setProject(next);
@@ -1131,8 +1118,8 @@ function App() {
         <div className="brand">
           <div className="brand-mark"><Sparkles size={19} /></div>
           <div>
-            <strong>{studioConfig?.studioName || "Thumbnail Studio"}</strong>
-            <span>{studioConfig?.channelName || "Local creator"}</span>
+            <strong>Thumbnail Studio</strong>
+            <span>AIニケちゃん</span>
           </div>
         </div>
         <div className="project-title-wrap">
@@ -1220,8 +1207,8 @@ function App() {
                         ? `＋部分フレーム${theme.accents.filter((accent) => accent.role === "foreground-accent").length}`
                         : (theme.accents || []).length ? `＋小物${theme.accents.length}` : ""}</span>
                       {theme.titleLayout || defaultThemeSupport(theme) ? (
-                        <span>{titleLayoutLabel(theme.titleLayout || "side-by-side", studioConfig)} · {defaultThemeSupport(theme)
-                          ? supportCopyLabel(theme.supportCopy || "none", studioConfig)
+                        <span>{titleLayoutLabels[theme.titleLayout || "side-by-side"]} · {defaultThemeSupport(theme)
+                          ? supportCopyLabels[theme.supportCopy || "none"]
                           : "補助画像なし"}</span>
                       ) : null}
                       <div className="theme-palette">{theme.palette.map((color) => <i key={color} style={{ background: color }} />)}</div>
@@ -1259,26 +1246,23 @@ function App() {
             </div>
             <div className="preset-group finish-group">
               <span>主題</span>
-              {studioConfig?.title.layouts.includes("split-character") ? (
-                <button
-                  disabled={!hasGeneratedSplitTitle}
-                  title={hasGeneratedSplitTitle ? "独立生成した2つの文字を配置" : "独立生成した2つの文字が必要です"}
-                  onClick={() => applyTitleComposition("split-character")}
-                >{titleLayoutLabel("split-character", studioConfig)}</button>
-              ) : null}
-              {studioConfig?.title.layouts.includes("diagonal-pair") ? (
-                <button
-                  disabled={!hasGeneratedMainTitle}
-                  title={hasGeneratedMainTitle ? "同じ生成画像内で2つの文字を対角配置した一体ロゴを配置" : "生成された対角型の主題ロゴが必要です"}
-                  onClick={() => applyTitleComposition("diagonal-pair")}
-                >{titleLayoutLabel("diagonal-pair", studioConfig)}</button>
-              ) : null}
+              <button
+                disabled={!hasGeneratedSplitTitle}
+                title={hasGeneratedSplitTitle ? "独立生成した朝・活を配置" : "独立生成した朝・活が必要です"}
+                onClick={() => applyTitleComposition("split-character")}
+              >朝｜人物｜活</button>
+              <button
+                disabled={!hasGeneratedMainTitle}
+                title={hasGeneratedMainTitle ? "同じ生成画像内で「朝」が左上、「活」が右下の一体ロゴを配置" : "生成された対角型の朝活ロゴが必要です"}
+                onClick={() => applyTitleComposition("diagonal-pair")}
+              >一体ロゴ・朝↘活</button>
             </div>
             <div className="preset-group finish-group">
               <span>補助</span>
-              {(Object.entries(studioConfig?.title.supportCopies || {}) as [GeneratedSupportCopyPreset, string][]).map(([preset, label]) => (
-                <button key={preset} disabled={!generatedSupportPresets.has(preset)} onClick={() => applySupport(preset)}>＋{label}</button>
-              ))}
+              <button disabled={!generatedSupportPresets.has("stream")} onClick={() => applySupport("stream")}>＋配信</button>
+              <button disabled={!generatedSupportPresets.has("casual")} onClick={() => applySupport("casual")}>＋するよ！</button>
+              <button disabled={!generatedSupportPresets.has("reading")} onClick={() => applySupport("reading")}>＋あさかつ</button>
+              <button disabled={!generatedSupportPresets.has("english")} onClick={() => applySupport("english")}>＋英字</button>
               <button onClick={() => applySupport("none")}>なし</button>
             </div>
             <div className="preset-group finish-group">

@@ -52,31 +52,6 @@ export type SupportCopyPreset = "none" | "stream" | "casual" | "reading" | "engl
 export type GeneratedSupportCopyPreset = Exclude<SupportCopyPreset, "none">;
 export type CompositionRole = "main-title" | "title-part-asa" | "title-part-katsu" | "support-copy";
 
-export type StudioConfig = {
-  version: 1;
-  studioName: string;
-  channelName: string;
-  defaultProjectName: string;
-  category: string;
-  title: {
-    primary: string;
-    splitParts?: [string, string];
-    supportCopies: Partial<Record<GeneratedSupportCopyPreset, string>>;
-    layouts: Array<Exclude<TitleLayoutPreset, "diagonal-impact">>;
-  };
-  character: {
-    name: string;
-    referenceImages: string[];
-    prompt: string;
-  };
-  referenceSearchQueries: string[];
-  generation: {
-    themeSetsPerCycle: number;
-    characterAssetsPerCycle: number;
-    intervalMinutes: number;
-  };
-};
-
 export type ThemeAccent = {
   asset: Asset;
   role: ThemeAccentRole;

@@ -1,4 +1,4 @@
-# Thumbnail Studio
+# AIニケちゃん Thumbnail Studio
 
 背景、生成文字、部分フレーム、キャラクターを別レイヤーで組み合わせる、ローカル専用のVTuberサムネイル制作アプリです。
 
@@ -21,7 +21,7 @@
 - 素材ライブラリ用の書き込み可能なディレクトリ
 - ChatGPTでログイン済みのCodexアプリまたはCodex CLI
 
-素材ライブラリの保存先は利用者が選び、Git管理外の `.env` に `THUMBNAIL_LIBRARY_ROOT` として設定します。用途、生成文字、キャラクター、生成サイクルもセットアップ時に決め、Git管理外の `studio.config.json` へ保存します。リポジトリには作者固有の値を含めません。
+素材ライブラリの保存先は利用者が選び、Git管理外の `.env` に `THUMBNAIL_LIBRARY_ROOT` として設定します。リポジトリには作者の保存先、ユーザー名、CodexプロジェクトIDを含めません。
 
 ## Codexにセットアップを任せる
 
@@ -31,7 +31,7 @@
 AGENTS.mdとdocs/SETUP.mdを読み、現在の環境を調べて、このアプリをセットアップしてください。安全に実行できる作業は進め、最後に素材の保存先、起動URL、Codex画像修正の利用可否、検証結果を報告してください。OpenAI Platform APIは使わないでください。
 ```
 
-Codexが環境確認、用途・生成文字・キャラクター・生成頻度の確認、ローカル設定作成、依存関係の導入、起動、ヘルスチェックまで対話的に進めます。詳しい項目は [`docs/SETUP.md`](docs/SETUP.md) を参照してください。
+Codexが環境確認、依存関係の導入、保存先の決定、起動、ヘルスチェックまで対話的に進めます。詳しい手順と別環境での保存先設定は [`docs/SETUP.md`](docs/SETUP.md) を参照してください。
 
 ## 起動
 
@@ -41,8 +41,6 @@ Codexが環境確認、用途・生成文字・キャラクター・生成頻度
 npm ci
 cp .env.example .env
 # .envのTHUMBNAIL_LIBRARY_ROOTを自分の保存先へ変更
-cp studio.config.example.json studio.config.json
-# studio.config.jsonを自分の用途・文字・キャラクターへ変更
 npm run dev
 ```
 
@@ -63,7 +61,7 @@ PORT=4179 THUMBNAIL_LIBRARY_ROOT=/absolute/path/to/library npm run dev
 
 ## 常用LaunchAgent
 
-常用環境では `com.nikechan.thumbnail-studio` LaunchAgentを使ってログイン時に起動できます。公開されているplistはテンプレートなので、`__PROJECT_DIR__`、`__LOG_DIR__`、`__NODE_BIN__` を自分の環境に合わせて置換してから登録してください。
+常用環境では `com.nikechan.thumbnail-studio` LaunchAgentを使ってログイン時に起動できます。公開されているplistはテンプレートなので、`__PROJECT_DIR__` と `__LOG_DIR__` を自分の環境に合わせて置換してから登録してください。
 
 ```bash
 launchctl kickstart -k gui/$(id -u)/com.nikechan.thumbnail-studio
@@ -118,11 +116,11 @@ launchctl print gui/$(id -u)/com.nikechan.thumbnail-studio
 
 主題文字の構成は次の3方式です。
 
-- `split-character`: 設定した2文字を別々に生成し、`文字1｜人物｜文字2`へ配置
-- `side-by-side`: 設定した主文字の一体ロゴと、生成した補助文字1点
-- `diagonal-pair`: 同じ透過PNG内で文字1を左上、文字2を右下へ組んだ一体ロゴと、生成した補助文字1点
+- `split-character`: 「朝」と「活」を別々に生成し、`朝｜人物｜活`へ配置
+- `side-by-side`: 一体の「朝活」ロゴと、生成した補助文字1点
+- `diagonal-pair`: 同じ透過PNG内で「朝」を左上、「活」を右下へ組んだ一体ロゴと、生成した補助文字1点
 
-主文字、分割文字、補助文字は `studio.config.json` で利用者が決めます。すべて画像生成素材を使い、OSフォント、Webフォント、Canvas文字、SVG文字で代用しません。結合済みロゴを切断して分割文字を作る処理も行いません。
+補助文字は「配信」「するよ！」「あさかつ」「MORNING STREAM」のいずれか1点です。すべて画像生成素材を使い、OSフォント、Webフォント、Canvas文字、SVG文字で代用しません。結合済みの「朝活」を切断して「朝」「活」にする処理も行いません。
 
 旧テーマの `diagonal-impact` は互換表示用です。新規テーマでは使用しません。
 
@@ -218,13 +216,33 @@ $THUMBNAIL_LIBRARY_ROOT/
 
 Git管理上の正本は [`automations/ai-t7-10/workflow.md`](automations/ai-t7-10/workflow.md) と [`automations/ai-t7-10/automation.toml`](automations/ai-t7-10/automation.toml) です。
 
-自動処理は1回につき1素材だけを生成します。1サイクルのテーマ数、キャラクター数、実行間隔はセットアップ時に利用者が決め、`studio.config.json` とCodex automationへ設定します。失敗したスロットは索引へ成功行を追加せず、次回も同じ位置から再開します。
+自動処理は1回につき1素材だけを生成し、次の13スロットを循環します。
+
+```text
+theme-a-background
+→ theme-a-title-primary
+→ theme-a-title-secondary
+→ theme-a-accent
+→ theme-b-background
+→ theme-b-title-primary
+→ theme-b-title-secondary
+→ theme-b-accent
+→ character-1
+→ theme-c-background
+→ theme-c-title-primary
+→ theme-c-title-secondary
+→ theme-c-accent
+→ theme-a-background
+```
+
+13runで、背景・生成文字2点・部分フレームからなるテーマ3セットと、キャラクター1点を作ります。失敗したスロットは索引へ成功行を追加せず、次回も同じ位置から再開します。
+
+定義名は互換上「AIニケちゃん サムネイル素材 10分」ですが、現行の `automation.toml` は5分間隔です。
 
 ### テーマ生成の品質契約
 
-- 各背景runで実在VTuberの公開YouTube配信サムネイルを調査し、構図、密度、色の役割、部分フレーム文法を文章と正規化比率で記録
-- Webから取得したサムネイル画像は一時的な目視分析だけに使い、`image_gen`には渡さず、永続保存もしない
-- 画像生成には、保存した構成分析から固有名・実際の文字・ロゴ・画風模倣を除いたテキストの `generation_brief` だけを使用
+- 各背景runで実在VTuberの公開YouTube配信サムネイルを1枚だけ参照
+- キャラクター、文字、ロゴ、固有マークはコピーせず、構図、密度、色の役割、部分フレーム文法だけを抽象化
 - 背景には人物、可読文字、疑似文字、小窓、空パネル、ダミータイトル形状を入れない
 - 主題文字と補助文字は背景と同じパレット・質感で生成
 - 任意小物と四辺フレームは生成しない
@@ -232,9 +250,9 @@ Git管理上の正本は [`automations/ai-t7-10/workflow.md`](automations/ai-t7-
 - 4素材を1280×720で機械合成し、完成構図を目視確認してからテーマを公開
 - 文字の誤字、余白過多、疑似文字、過密背景、小窓風構図があれば不採用
 
-ソースURL、動画情報、構成分析Markdownは、素材ライブラリの `prompts/YYYY/MM/DD/` に保存します。候補サムネイルはrun固有の一時ディレクトリでだけ確認し、画像生成前に削除します。過去のワークフローが `references/vtuber-thumbnails/` に保存した既存画像は、新しい生成では参照せず、新規追加もしません。
+参照した公開サムネイルとsource JSONは `references/vtuber-thumbnails/YYYY/MM/DD/` に保存します。このフォルダはスケジューラの作業成果であり、通常のアプリ変更では編集・削除しません。
 
-リポジトリ内の `automation.toml` は公開用テンプレートです。利用時はCodexアプリのautomation機能で、自分のCodexプロジェクト、クローン先、決定した生成間隔を設定してください。個人環境のパス、プロジェクトID、指定文字、キャラクター条件はコミットしません。
+リポジトリ内の `automation.toml` は公開用テンプレートです。利用時はCodexアプリのautomation機能で、自分のCodexプロジェクトとクローン先を設定してください。個人環境のパスやプロジェクトIDはコミットしません。
 
 ## 検証
 
@@ -253,7 +271,6 @@ UI変更では、コードやDOMだけでなく、実ブラウザでクリック
 - [`src/types.ts`](src/types.ts): プロジェクト、レイヤー、テーマ、Codexジョブの型
 - [`server/index.ts`](server/index.ts): ローカルHTTP API
 - [`server/storage.ts`](server/storage.ts): 素材・プロジェクト・テーマの保存
-- [`server/studio-config.ts`](server/studio-config.ts): 利用者固有設定の読込と検証
 - [`server/codex-edits.ts`](server/codex-edits.ts): ChatGPTサブスクリプション限定のCodex画像修正
 - [`automations/ai-t7-10/workflow.md`](automations/ai-t7-10/workflow.md): 素材生成契約
 
@@ -266,6 +283,6 @@ UI変更では、コードやDOMだけでなく、実ブラウザでクリック
 - `references/` 以下のAIニケちゃんモデルシートと画像
 - AIニケちゃんのキャラクターデザイン、名称、ロゴ、ブランド要素
 - 利用者の素材ライブラリ内の生成画像、プロンプト記録、完成画像
-- 過去のワークフローが `references/vtuber-thumbnails/` へ取得した外部VTuber／YouTubeサムネイル（新しい生成では参照・追加しません）
+- `references/vtuber-thumbnails/` へ取得する外部VTuber／YouTubeサムネイル
 
 これらの画像・キャラクター・第三者コンテンツには、それぞれの権利者の権利が残ります。再利用や再配布の許諾をMIT Licenseから得ることはできません。

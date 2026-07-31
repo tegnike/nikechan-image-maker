@@ -32,19 +32,19 @@ describe("Codex thumbnail edits", () => {
   it("stores the current canvas and exposes a reloadable job record", async () => {
     const job = await codexEdits.createCodexEditJob({
       projectId: "project-test",
-      projectName: "テストサムネイル",
+      projectName: "朝活サムネイル",
       instruction: "背景だけを明るくしてください",
       png: pngHeader(),
     });
 
     expect(job).toMatchObject({
       projectId: "project-test",
-      projectName: "テストサムネイル",
+      projectName: "朝活サムネイル",
       status: "queued",
       inputUrl: expect.stringMatching(/^\/codex-edits\/.+\/input\.png$/),
     });
     expect(job.id).toMatch(/^\d{8}T\d{6}Z-[a-f0-9-]{12}$/);
-    expect(job.id).not.toContain("テストサムネイル");
+    expect(job.id).not.toContain("朝活");
     expect(await readFile(codexEdits.getCodexEditFile(job.id, "input.png"))).toEqual(pngHeader());
     expect((await codexEdits.listCodexEditJobs())[0]).toMatchObject({ id: job.id, instruction: "背景だけを明るくしてください" });
   });

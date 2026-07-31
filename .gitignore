@@ -7,7 +7,6 @@ tmp/
 __pycache__/
 *.pyc
 .env
-studio.config.json
 references/vtuber-thumbnails/
 tmp-ai-t7-10-*.json
 tmp-ai-t7-10-*.jsonl
