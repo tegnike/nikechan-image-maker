@@ -5,3 +5,6 @@ coverage/
 tmp/
 *.log
 .env
+references/vtuber-thumbnails/
+tmp-ai-t7-10-*.json
+tmp-ai-t7-10-*.jsonl

@@ -2,6 +2,11 @@
   "name": "nikechan-thumbnail-maker",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tegnike/nikechan-image-maker.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx server/index.ts",
